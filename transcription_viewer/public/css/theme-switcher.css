@@ -1,0 +1,1191 @@
+/* Define base colors with improved contrast ratios */
+:root {
+  /* A brighter overall background */
+  --light-bg-color: #ffffff;
+
+  /* Dark neutral gray for strong readability on a near-white background */
+  --light-text-color: #262626;
+
+  /* Buttons: retain teal accent for visual pop */
+  --light-btn-bg-color: #009688;
+  --light-btn-text-color: #ffffff;
+  /* Lighter gray for subtle borders */
+  --light-btn-border-color: #cccccc;
+
+  /* Header: pure white for top-of-page cleanliness */
+  --light-header-bg-color: #ffffff;
+  --light-header-text-color: #262626;
+
+  /* Navbar: very light gray to visually separate from header/background */
+  --light-navbar-bg-color: #fafafa; 
+  --light-navbar-link-color: #262626;
+  --light-navbar-link-hover-color: #009688;
+
+  /* Footer: slightly off-white for gentle contrast with main background */
+  --light-footer-bg-color: #fdfdfd;
+  --light-footer-text-color: #262626;
+
+  /* Inputs/Textareas: pure white for clarity, neutral text color */
+  --light-input-bg-color: #ffffff;
+  --light-input-text-color: #262626;
+  --light-input-border-color: #cccccc;
+
+  --light-textarea-bg-color: #ffffff;
+  --light-textarea-text-color: #262626;
+  --light-textarea-border-color: #cccccc;
+  /* Same teal accent for focus, consistent with buttons */
+  --light-textarea-focus-color: #009688;
+  /* Slightly darker off-white to distinguish active state */
+  --light-textarea-active-bg-color: #f5f5f5;
+  --light-textarea-active-text-color: #262626;
+
+  /* AI response section: light gray to differentiate from pure white */
+  --light-ai-response-bg-color: #f8f8f8;
+  --light-ai-response-text-color: #262626;
+
+  /* Dropdown: white with neutral text, gentle hover background */
+  --light-dropdown-bg-color: #ffffff;
+  --light-dropdown-text-color: #262626;
+  --light-dropdown-border-color: #dddddd;
+  --light-dropdown-item-bg-color: #ffffff;
+  --light-dropdown-item-text-color: #262626;
+  /* Subtle hover color for a minimal, modern feel */
+  --light-dropdown-item-hover-bg-color: #f7f7f7;
+  --light-dropdown-item-hover-text-color: #262626;
+
+
+
+  /* A medium-dark background that isn’t fully black */
+  --dark-bg-color: #2b2b2b;
+  /* Slightly warmer, lighter gray text */
+  --dark-text-color: #c0bdb5;
+
+  /* Buttons remain dark, but not pitch-black */
+  --dark-btn-bg-color: #3a3a3a;
+  --dark-btn-text-color: #c0bdb5;
+  --dark-btn-border-color: #444444;
+
+  /* Headers/Nav slightly darker for differentiation */
+  --dark-header-bg-color: #242424;
+  --dark-header-text-color: #c0bdb5;
+  --dark-navbar-bg-color: #242424;
+  --dark-navbar-link-color: #c0bdb5;
+  /* Hover is a soft off-white, still warm */
+  --dark-navbar-link-hover-color: #ebe8df;
+
+  /* Footer color to match header/nav for a cohesive look */
+  --dark-footer-bg-color: #242424;
+  --dark-footer-text-color: #c0bdb5;
+
+  /* Inputs/Textareas: medium-dark backgrounds + warm text */
+  --dark-input-bg-color: #3a3a3a;
+  --dark-input-text-color: #c0bdb5;
+  --dark-input-border-color: #666666;
+
+  --dark-textarea-bg-color: #3a3a3a;
+  --dark-textarea-text-color: #c0bdb5;
+  --dark-textarea-border-color: #666666;
+  /* Use a warm focus color instead of bright blue */
+  --dark-textarea-focus-color: #a07f60;
+  --dark-textarea-active-bg-color: #333333;
+  --dark-textarea-active-text-color: #c0bdb5;
+
+  /* AI response area: Keep it cohesive with the main background */
+  --dark-ai-response-bg-color: #2b2b2b;
+  --dark-ai-response-text-color: #b8b5ad;
+
+  /* Dropdowns: Dark background, warm text */
+  --dark-dropdown-bg-color: #333333;
+  --dark-dropdown-text-color: #c0bdb5;
+  --dark-dropdown-border-color: #555555;
+  --dark-dropdown-item-bg-color: #333333;
+  --dark-dropdown-item-text-color: #c0bdb5;
+  --dark-dropdown-item-hover-bg-color: #444444;
+  --dark-dropdown-item-hover-text-color: #c0bdb5;
+
+
+  --ultraDark-bg-color: #000000;
+  --ultraDark-text-color: #c4c1b6;
+
+  --ultraDark-btn-bg-color: #111111;
+  --ultraDark-btn-text-color: #c4c1b6;
+  --ultraDark-btn-border-color: #333333;
+
+  --ultraDark-header-bg-color: #000000;
+  --ultraDark-header-text-color: #c4c1b6;
+
+  --ultraDark-navbar-bg-color: #000000;
+  --ultraDark-navbar-link-color: #c4c1b6;
+  /* Slightly lighter “hover” color, but still minimal blue */
+  --ultraDark-navbar-link-hover-color: #dddacc;
+
+  --ultraDark-footer-bg-color: #000000;
+  --ultraDark-footer-text-color: #c4c1b6;
+
+  --ultraDark-input-bg-color: #222222;
+  --ultraDark-input-text-color: #c4c1b6;
+  --ultraDark-input-border-color: #555555;
+
+  --ultraDark-textarea-bg-color: #222222;
+  --ultraDark-textarea-text-color: #c4c1b6;
+  --ultraDark-textarea-border-color: #555555;
+  /* Warmer focus color instead of bright blue */
+  --ultraDark-textarea-focus-color: #9e7b62;
+  --ultraDark-textarea-active-bg-color: #111111;
+  --ultraDark-textarea-active-text-color: #c4c1b6;
+
+  --ultraDark-ai-response-bg-color: #000000;
+  --ultraDark-ai-response-text-color: #8f8c82;
+
+  --ultraDark-dropdown-bg-color: #111111;
+  --ultraDark-dropdown-text-color: #c4c1b6;
+  --ultraDark-dropdown-border-color: #333333;
+  --ultraDark-dropdown-item-bg-color: #111111;
+  --ultraDark-dropdown-item-text-color: #c4c1b6;
+  --ultraDark-dropdown-item-hover-bg-color: #2c2c2c;
+  --ultraDark-dropdown-item-hover-text-color: #c4c1b6;
+
+
+  /* Background:
+  A deep, balanced green that evokes calm and confidence */
+  --colorPsychology-bg-color: #1e3b34;
+
+  /* Text:
+    A soft off‑white with a slight green tint for less visual harshness */
+  --colorPsychology-text-color: #c8f2ea;
+
+  /* Buttons:
+    Keep the background matching the main site color,
+    with white text and a goldish accent border */
+  --colorPsychology-btn-bg-color: #1e3b34;
+  --colorPsychology-btn-text-color: #ffffff;
+  --colorPsychology-btn-border-color: #d1ad4a;
+
+  /* Header, Navbar, Footer:
+    Slightly darker than main bg for subtle separation;
+    Text is consistent with site color scheme */
+  --colorPsychology-header-bg-color: #162b27;
+  --colorPsychology-header-text-color: #c8f2ea;
+
+  --colorPsychology-navbar-bg-color: #162b27;
+  --colorPsychology-navbar-link-color: #c8f2ea;
+  /* Hover state: lighten text slightly to show interactivity */
+  --colorPsychology-navbar-link-hover-color: #defaf4;
+
+  --colorPsychology-footer-bg-color: #162b27;
+  --colorPsychology-footer-text-color: #c8f2ea;
+
+  /* Inputs & Textareas:
+    Lighter background to make form fields clearly visible,
+    but still in the green family for cohesion;
+    Gold border/focus accent for a warm, premium feel */
+  --colorPsychology-input-bg-color: #22433b;
+  --colorPsychology-input-text-color: #c8f2ea;
+  --colorPsychology-input-border-color: #d1ad4a;
+
+  --colorPsychology-textarea-bg-color: #22433b;
+  --colorPsychology-textarea-text-color: #c8f2ea;
+  --colorPsychology-textarea-border-color: #d1ad4a;
+  /* Focus color:
+    Use a brighter gold to highlight active state without harshness */
+  --colorPsychology-textarea-focus-color: #e6c25e;
+  /* Active background slightly lighter to show user engagement */
+  --colorPsychology-textarea-active-bg-color: #1b352f;
+  --colorPsychology-textarea-active-text-color: #c8f2ea;
+
+  /* AI Response:
+    Similar dark color, ensuring consistent brand identity */
+  --colorPsychology-ai-response-bg-color: #162b27;
+  --colorPsychology-ai-response-text-color: #c8f2ea;
+
+  /* Dropdown:
+    Slightly lighter background than main to differentiate;
+    text remains soft off‑white to maintain consistency */
+  --colorPsychology-dropdown-bg-color: #1b352f;
+  --colorPsychology-dropdown-text-color: #c8f2ea;
+  --colorPsychology-dropdown-border-color: #22433b;
+  --colorPsychology-dropdown-item-bg-color: #1b352f;
+  --colorPsychology-dropdown-item-text-color: #c8f2ea;
+  /* Hover: lighten background for clarity */
+  --colorPsychology-dropdown-item-hover-bg-color: #22433b;
+  --colorPsychology-dropdown-item-hover-text-color: #c8f2ea;
+   
+
+  --vibrantSunrise-bg-color: #fff8f0;
+  --vibrantSunrise-text-color: #4a4a4a;
+  --vibrantSunrise-btn-bg-color: #fff8f0;
+  --vibrantSunrise-btn-text-color: #ff8c42;
+  --vibrantSunrise-btn-border-color: #ff7f2e;
+  --vibrantSunrise-header-bg-color: #ffdcb8;
+  --vibrantSunrise-header-text-color: #4a4a4a;
+  --vibrantSunrise-navbar-bg-color: #ff8c42;
+  --vibrantSunrise-navbar-link-color: #ffffff;
+  --vibrantSunrise-navbar-link-hover-color: #ffe8d6;
+  --vibrantSunrise-footer-bg-color: #ffdcb8;
+  --vibrantSunrise-footer-text-color: #4a4a4a;
+  --vibrantSunrise-input-bg-color: #ffffff;
+  --vibrantSunrise-input-text-color: #4a4a4a;
+  --vibrantSunrise-input-border-color: #ffb17a;
+  --vibrantSunrise-textarea-bg-color: #ffffff;
+  --vibrantSunrise-textarea-text-color: #4a4a4a;
+  --vibrantSunrise-textarea-border-color: #ffb17a;
+  --vibrantSunrise-textarea-focus-color: #ff8c42;
+  --vibrantSunrise-textarea-active-bg-color: #fff5eb;
+  --vibrantSunrise-textarea-active-text-color: #4a4a4a;
+  --vibrantSunrise-ai-response-bg-color: #fff5eb;
+  --vibrantSunrise-ai-response-text-color: #4a4a4a;
+  --vibrantSunrise-dropdown-bg-color: #ffffff;
+  --vibrantSunrise-dropdown-text-color: #4a4a4a;
+  --vibrantSunrise-dropdown-border-color: #ffb17a;
+  --vibrantSunrise-dropdown-item-bg-color: #ffffff;
+  --vibrantSunrise-dropdown-item-text-color: #4a4a4a;
+  --vibrantSunrise-dropdown-item-hover-bg-color: #fff5eb;
+  --vibrantSunrise-dropdown-item-hover-text-color: #4a4a4a;
+
+  --sereneOcean-bg-color: #e6f2ff;
+  --sereneOcean-text-color: #0c2d48;
+  --sereneOcean-btn-bg-color: #e6f2ff;
+  --sereneOcean-btn-text-color: #1e88e5;
+  --sereneOcean-btn-border-color: #1565c0;
+  --sereneOcean-header-bg-color: #b3e5fc;
+  --sereneOcean-header-text-color: #0c2d48;
+  --sereneOcean-navbar-bg-color: #1e88e5;
+  --sereneOcean-navbar-link-color: #ffffff;
+  --sereneOcean-navbar-link-hover-color: #e1f5fe;
+  --sereneOcean-footer-bg-color: #b3e5fc;
+  --sereneOcean-footer-text-color: #0c2d48;
+  --sereneOcean-input-bg-color: #ffffff;
+  --sereneOcean-input-text-color: #0c2d48;
+  --sereneOcean-input-border-color: #64b5f6;
+  --sereneOcean-textarea-bg-color: #ffffff;
+  --sereneOcean-textarea-text-color: #0c2d48;
+  --sereneOcean-textarea-border-color: #64b5f6;
+  --sereneOcean-textarea-focus-color: #1e88e5;
+  --sereneOcean-textarea-active-bg-color: #e1f5fe;
+  --sereneOcean-textarea-active-text-color: #0c2d48;
+  --sereneOcean-ai-response-bg-color: #e1f5fe;
+  --sereneOcean-ai-response-text-color: #0c2d48;
+  --sereneOcean-dropdown-bg-color: #ffffff;
+  --sereneOcean-dropdown-text-color: #0c2d48;
+  --sereneOcean-dropdown-border-color: #64b5f6;
+  --sereneOcean-dropdown-item-bg-color: #ffffff;
+  --sereneOcean-dropdown-item-text-color: #0c2d48;
+  --sereneOcean-dropdown-item-hover-bg-color: #e1f5fe;
+  --sereneOcean-dropdown-item-hover-text-color: #0c2d48;
+
+  --intelligenceAgency-bg-color: #14213d;          /* Main background: dark navy */
+  --intelligenceAgency-text-color: #e5e5e5;        /* Primary text: light gray for contrast */
+
+  --intelligenceAgency-btn-bg-color: #14213d;      /* Button background: matches main bg */
+  --intelligenceAgency-btn-text-color: #fca311;    /* Button text: bold accent orange */
+  --intelligenceAgency-btn-border-color: #e5e5e5;  /* Button border: light gray for visibility */
+
+  --intelligenceAgency-header-bg-color: #000000;   /* Header: pure black */
+  --intelligenceAgency-header-text-color: #ffffff; /* Header text: white for maximum contrast */
+
+  --intelligenceAgency-navbar-bg-color: #14213d;   /* Navbar: same dark navy */
+  --intelligenceAgency-navbar-link-color: #e5e5e5; /* Nav link text: light gray */
+  --intelligenceAgency-navbar-link-hover-color: #fca311; /* Hover: accent orange */
+
+  --intelligenceAgency-footer-bg-color: #000000;   /* Footer: pure black for visual anchor */
+  --intelligenceAgency-footer-text-color: #e5e5e5; /* Footer text: light gray */
+
+  --intelligenceAgency-input-bg-color: #ffffff;    /* Form inputs: white for clarity */
+  --intelligenceAgency-input-text-color: #14213d;  /* Input text: dark navy */
+  --intelligenceAgency-input-border-color: #fca311;/* Input border: orange accent */
+
+  --intelligenceAgency-textarea-bg-color: #ffffff; /* Textarea: white */
+  --intelligenceAgency-textarea-text-color: #14213d; /* Dark navy text */
+  --intelligenceAgency-textarea-border-color: #fca311;  /* Orange border */
+  --intelligenceAgency-textarea-focus-color: #fca311;   /* Orange focus outline */
+  --intelligenceAgency-textarea-active-bg-color: #e5e5e5; /* Active state: light gray */
+  --intelligenceAgency-textarea-active-text-color: #14213d; /* Active text: dark navy */
+
+  --intelligenceAgency-ai-response-bg-color: #000000; /* AI response area: black for emphasis */
+  --intelligenceAgency-ai-response-text-color: #e5e5e5; /* Light gray text */
+
+  --intelligenceAgency-dropdown-bg-color: #ffffff;  /* Dropdown background: white */
+  --intelligenceAgency-dropdown-text-color: #14213d;/* Dark navy text */
+  --intelligenceAgency-dropdown-border-color: #fca311;    /* Accent border */
+  --intelligenceAgency-dropdown-item-bg-color: #ffffff;    /* Item background: white */
+  --intelligenceAgency-dropdown-item-text-color: #14213d;  /* Dark navy text */
+  --intelligenceAgency-dropdown-item-hover-bg-color: #e5e5e5; /* Hover: light gray */
+  --intelligenceAgency-dropdown-item-hover-text-color: #14213d; /* Dark navy text */
+
+}
+
+
+body.light {
+  background-color: var(--light-bg-color);
+  color: var(--light-text-color);
+}
+
+body.light header {
+  background-color: var(--light-header-bg-color);
+  color: var(--light-header-text-color);
+}
+
+body.light button,
+body.light select {
+  background-color: var(--light-btn-bg-color);
+  color: var(--light-btn-text-color);
+  border-color: var(--light-btn-border-color);
+}
+
+body.light .play-button {
+  color: var(--light-btn-text-color);
+}
+
+body.light .navbar {
+  background-color: var(--light-navbar-bg-color);
+}
+
+body.light .navbar-brand,
+body.light .navbar-nav .nav-link {
+  color: var(--light-navbar-link-color);
+}
+
+body.light .navbar-nav .nav-link:hover {
+  color: var(--light-navbar-link-hover-color);
+}
+
+/* If you want a custom navbar-toggler icon for .light, override here.
+   Otherwise it will take the fallback below. */
+
+body.light footer {
+  background-color: var(--light-footer-bg-color);
+  color: var(--light-footer-text-color);
+}
+
+body.light input {
+  background-color: var(--light-input-bg-color);
+  color: var(--light-input-text-color);
+  border-color: var(--light-input-border-color);
+}
+
+body.light textarea {
+  background-color: var(--light-textarea-bg-color);
+  color: var(--light-textarea-text-color);
+  border-color: var(--light-textarea-border-color);
+}
+
+body.light textarea:active,
+body.light textarea:focus {
+  background-color: var(--light-textarea-active-bg-color);
+  color: var(--light-textarea-active-text-color);
+}
+
+body.light textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--light-textarea-focus-color);
+}
+
+body.light #aiResponse {
+  background-color: var(--light-ai-response-bg-color);
+  color: var(--light-ai-response-text-color);
+}
+
+body.light .dropdown-menu {
+  background-color: var(--light-dropdown-bg-color);
+  color: var(--light-dropdown-text-color);
+  border-color: var(--light-dropdown-border-color);
+}
+
+body.light .dropdown-item {
+  background-color: var(--light-dropdown-item-bg-color);
+  color: var(--light-dropdown-item-text-color);
+}
+
+body.light .dropdown-item:hover,
+body.light .dropdown-item:focus {
+  background-color: var(--light-dropdown-item-hover-bg-color);
+  color: var(--light-dropdown-item-hover-text-color);
+}
+
+
+/* Apply the "Intelligence Agency" theme */
+body.intelligenceAgency {
+  background-color: var(--intelligenceAgency-bg-color);
+  color: var(--intelligenceAgency-text-color);
+}
+
+body.intelligenceAgency header {
+  background-color: var(--intelligenceAgency-header-bg-color);
+  color: var(--intelligenceAgency-header-text-color);
+}
+
+body.intelligenceAgency button,
+body.intelligenceAgency select {
+  background-color: var(--intelligenceAgency-btn-bg-color);
+  color: var(--intelligenceAgency-btn-text-color);
+  border-color: var(--intelligenceAgency-btn-border-color);
+}
+
+body.intelligenceAgency .play-button {
+  color: var(--intelligenceAgency-btn-text-color);
+}
+
+body.intelligenceAgency .navbar {
+  background-color: var(--intelligenceAgency-navbar-bg-color);
+}
+
+body.intelligenceAgency .navbar-brand,
+body.intelligenceAgency .navbar-nav .nav-link {
+  color: var(--intelligenceAgency-navbar-link-color);
+}
+
+body.intelligenceAgency .navbar-nav .nav-link:hover {
+  color: var(--intelligenceAgency-navbar-link-hover-color);
+}
+
+body.intelligenceAgency .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23e5e5e5' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+body.intelligenceAgency footer {
+  background-color: var(--intelligenceAgency-footer-bg-color);
+  color: var(--intelligenceAgency-footer-text-color);
+}
+
+body.intelligenceAgency input {
+  background-color: var(--intelligenceAgency-input-bg-color);
+  color: var(--intelligenceAgency-input-text-color);
+  border-color: var(--intelligenceAgency-input-border-color);
+}
+
+body.intelligenceAgency textarea {
+  background-color: var(--intelligenceAgency-textarea-bg-color);
+  color: var(--intelligenceAgency-textarea-text-color);
+  border-color: var(--intelligenceAgency-textarea-border-color);
+}
+
+body.intelligenceAgency textarea:active,
+body.intelligenceAgency textarea:focus {
+  background-color: var(--intelligenceAgency-textarea-active-bg-color);
+  color: var(--intelligenceAgency-textarea-active-text-color);
+}
+
+body.intelligenceAgency textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--intelligenceAgency-textarea-focus-color);
+}
+
+body.intelligenceAgency #aiResponse {
+  background-color: var(--intelligenceAgency-ai-response-bg-color);
+  color: var(--intelligenceAgency-ai-response-text-color);
+}
+
+body.intelligenceAgency .dropdown-menu {
+  background-color: var(--intelligenceAgency-dropdown-bg-color);
+  color: var(--intelligenceAgency-dropdown-text-color);
+  border-color: var(--intelligenceAgency-dropdown-border-color);
+}
+
+body.intelligenceAgency .dropdown-item {
+  background-color: var(--intelligenceAgency-dropdown-item-bg-color);
+  color: var(--intelligenceAgency-dropdown-item-text-color);
+}
+
+body.intelligenceAgency .dropdown-item:hover,
+body.intelligenceAgency .dropdown-item:focus {
+  background-color: var(--intelligenceAgency-dropdown-item-hover-bg-color);
+  color: var(--intelligenceAgency-dropdown-item-hover-text-color);
+}
+
+/* Apply the "Serene Ocean" theme */
+body.sereneOcean {
+  background-color: var(--sereneOcean-bg-color);
+  color: var(--sereneOcean-text-color);
+}
+
+body.sereneOcean header {
+  background-color: var(--sereneOcean-header-bg-color);
+  color: var(--sereneOcean-header-text-color);
+}
+
+body.sereneOcean button,
+body.sereneOcean select {
+  background-color: var(--sereneOcean-btn-bg-color);
+  color: var(--sereneOcean-btn-text-color);
+  border-color: var(--sereneOcean-btn-border-color);
+}
+
+body.sereneOcean .play-button {
+  color: var(--sereneOcean-btn-text-color);
+}
+
+body.sereneOcean .navbar {
+  background-color: var(--sereneOcean-navbar-bg-color);
+}
+
+body.sereneOcean .navbar-brand,
+body.sereneOcean .navbar-nav .nav-link {
+  color: var(--sereneOcean-navbar-link-color);
+}
+
+body.sereneOcean .navbar-nav .nav-link:hover {
+  color: var(--sereneOcean-navbar-link-hover-color);
+}
+
+body.sereneOcean .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+body.sereneOcean footer {
+  background-color: var(--sereneOcean-footer-bg-color);
+  color: var(--sereneOcean-footer-text-color);
+}
+
+body.sereneOcean input {
+  background-color: var(--sereneOcean-input-bg-color);
+  color: var(--sereneOcean-input-text-color);
+  border-color: var(--sereneOcean-input-border-color);
+}
+
+body.sereneOcean textarea {
+  background-color: var(--sereneOcean-textarea-bg-color);
+  color: var(--sereneOcean-textarea-text-color);
+  border-color: var(--sereneOcean-textarea-border-color);
+}
+
+body.sereneOcean textarea:active,
+body.sereneOcean textarea:focus {
+  background-color: var(--sereneOcean-textarea-active-bg-color);
+  color: var(--sereneOcean-textarea-active-text-color);
+}
+
+body.sereneOcean textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--sereneOcean-textarea-focus-color);
+}
+
+body.sereneOcean #aiResponse {
+  background-color: var(--sereneOcean-ai-response-bg-color);
+  color: var(--sereneOcean-ai-response-text-color);
+}
+
+body.sereneOcean .dropdown-menu {
+  background-color: var(--sereneOcean-dropdown-bg-color);
+  color: var(--sereneOcean-dropdown-text-color);
+  border-color: var(--sereneOcean-dropdown-border-color);
+}
+
+body.sereneOcean .dropdown-item {
+  background-color: var(--sereneOcean-dropdown-item-bg-color);
+  color: var(--sereneOcean-dropdown-item-text-color);
+}
+
+body.sereneOcean .dropdown-item:hover,
+body.sereneOcean .dropdown-item:focus {
+  background-color: var(--sereneOcean-dropdown-item-hover-bg-color);
+  color: var(--sereneOcean-dropdown-item-hover-text-color);
+}
+
+/* Apply the "Vibrant Sunrise" theme */
+body.vibrantSunrise {
+  background-color: var(--vibrantSunrise-bg-color);
+  color: var(--vibrantSunrise-text-color);
+}
+
+body.vibrantSunrise header {
+  background-color: var(--vibrantSunrise-header-bg-color);
+  color: var(--vibrantSunrise-header-text-color);
+}
+
+body.vibrantSunrise button,
+body.vibrantSunrise select {
+  background-color: var(--vibrantSunrise-btn-bg-color);
+  color: var(--vibrantSunrise-btn-text-color);
+  border-color: var(--vibrantSunrise-btn-border-color);
+}
+
+body.vibrantSunrise .play-button {
+  color: var(--vibrantSunrise-btn-text-color);
+}
+
+body.vibrantSunrise .navbar {
+  background-color: var(--vibrantSunrise-navbar-bg-color);
+}
+
+body.vibrantSunrise .navbar-brand,
+body.vibrantSunrise .navbar-nav .nav-link {
+  color: var(--vibrantSunrise-navbar-link-color);
+}
+
+body.vibrantSunrise .navbar-nav .nav-link:hover {
+  color: var(--vibrantSunrise-navbar-link-hover-color);
+}
+
+body.vibrantSunrise .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+body.vibrantSunrise footer {
+  background-color: var(--vibrantSunrise-footer-bg-color);
+  color: var(--vibrantSunrise-footer-text-color);
+}
+
+body.vibrantSunrise input {
+  background-color: var(--vibrantSunrise-input-bg-color);
+  color: var(--vibrantSunrise-input-text-color);
+  border-color: var(--vibrantSunrise-input-border-color);
+}
+
+body.vibrantSunrise textarea {
+  background-color: var(--vibrantSunrise-textarea-bg-color);
+  color: var(--vibrantSunrise-textarea-text-color);
+  border-color: var(--vibrantSunrise-textarea-border-color);
+}
+
+body.vibrantSunrise textarea:active,
+body.vibrantSunrise textarea:focus {
+  background-color: var(--vibrantSunrise-textarea-active-bg-color);
+  color: var(--vibrantSunrise-textarea-active-text-color);
+}
+
+body.vibrantSunrise textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--vibrantSunrise-textarea-focus-color);
+}
+
+body.vibrantSunrise #aiResponse {
+  background-color: var(--vibrantSunrise-ai-response-bg-color);
+  color: var(--vibrantSunrise-ai-response-text-color);
+}
+
+body.vibrantSunrise .dropdown-menu {
+  background-color: var(--vibrantSunrise-dropdown-bg-color);
+  color: var(--vibrantSunrise-dropdown-text-color);
+  border-color: var(--vibrantSunrise-dropdown-border-color);
+}
+
+body.vibrantSunrise .dropdown-item {
+  background-color: var(--vibrantSunrise-dropdown-item-bg-color);
+  color: var(--vibrantSunrise-dropdown-item-text-color);
+}
+
+body.vibrantSunrise .dropdown-item:hover,
+body.vibrantSunrise .dropdown-item:focus {
+  background-color: var(--vibrantSunrise-dropdown-item-hover-bg-color);
+  color: var(--vibrantSunrise-dropdown-item-hover-text-color);
+}
+
+
+/* Enhance styles for better responsiveness and visual hierarchy */
+body {
+  background-color: var(--light-bg-color);
+  color: var(--light-text-color);
+}
+
+body.dark {
+  background-color: var(--dark-bg-color);
+  color: var(--dark-text-color);
+}
+
+body.ultraDark {
+  background-color: var(--ultraDark-bg-color);
+  color: var(--ultraDark-text-color);
+}
+
+body.colorPsychology {
+  background-color: var(--colorPsychology-bg-color);
+  color: var(--colorPsychology-text-color);
+}
+
+header {
+  background-color: var(--light-header-bg-color);
+  color: var(--light-header-text-color);
+}
+
+body.dark header {
+  background-color: var(--dark-header-bg-color);
+  color: var(--dark-header-text-color);
+}
+
+body.ultraDark header {
+  background-color: var(--ultraDark-header-bg-color);
+  color: var(--ultraDark-header-text-color);
+}
+
+body.colorPsychology header {
+  background-color: var(--colorPsychology-header-bg-color);
+  color: var(--colorPsychology-header-text-color);
+}
+
+button,
+select {
+  background-color: var(--light-btn-bg-color);
+  color: var(--light-btn-text-color);
+  border-color: var(--light-btn-border-color);
+}
+
+body.dark button,
+body.dark select {
+  background-color: var(--dark-btn-bg-color);
+  color: var(--dark-btn-text-color);
+  border-color: var(--dark-btn-border-color);
+}
+
+body.ultraDark button,
+body.ultraDark select {
+  background-color: var(--ultraDark-btn-bg-color);
+  color: var(--ultraDark-btn-text-color);
+  border-color: var(--ultraDark-btn-border-color);
+}
+
+body.colorPsychology button,
+body.colorPsychology select {
+  background-color: var(--colorPsychology-btn-bg-color);
+  color: var(--colorPsychology-btn-text-color);
+  border-color: var(--colorPsychology-btn-border-color);
+}
+
+.play-button {
+  color: var(--light-btn-text-color);
+}
+
+body.dark .play-button {
+  color: var(--dark-btn-text-color);
+}
+
+body.ultraDark .play-button {
+  color: var(--ultraDark-btn-text-color);
+}
+
+body.colorPsychology .play-button {
+  color: var(--colorPsychology-btn-text-color);
+}
+
+/* Navbar styles */
+.navbar {
+  background-color: var(--light-navbar-bg-color);
+}
+
+.navbar-brand,
+.navbar-nav .nav-link {
+  color: var(--light-navbar-link-color);
+}
+
+.navbar-nav .nav-link:hover {
+  color: var(--light-navbar-link-hover-color);
+}
+
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+body.dark .navbar {
+  background-color: var(--dark-navbar-bg-color);
+}
+
+body.dark .navbar-brand,
+body.dark .navbar-nav .nav-link {
+  color: var(--dark-navbar-link-color);
+}
+
+body.dark .navbar-nav .nav-link:hover {
+  color: var(--dark-navbar-link-hover-color);
+}
+
+body.dark .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23a3a3a3' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+body.ultraDark .navbar {
+  background-color: var(--ultraDark-navbar-bg-color);
+}
+
+body.ultraDark .navbar-brand,
+body.ultraDark .navbar-nav .nav-link {
+  color: var(--ultraDark-navbar-link-color);
+}
+
+body.ultraDark .navbar-nav .nav-link:hover {
+  color: var(--ultraDark-navbar-link-hover-color);
+}
+
+body.ultraDark .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23c7c7c7' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+body.colorPsychology .navbar {
+  background-color: var(--colorPsychology-navbar-bg-color);
+}
+
+body.colorPsychology .navbar-brand,
+body.colorPsychology .navbar-nav .nav-link {
+  color: var(--colorPsychology-navbar-link-color);
+}
+
+body.colorPsychology .navbar-nav .nav-link:hover {
+  color: var(--colorPsychology-navbar-link-hover-color);
+}
+
+body.colorPsychology .navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%2384ffdb' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* Footer styles */
+footer {
+  padding: 20px 0;
+}
+
+footer,
+body.dark footer,
+body.ultraDark footer,
+body.colorPsychology footer {
+  background-color: var(--light-footer-bg-color);
+  color: var(--light-footer-text-color);
+}
+
+body.dark footer {
+  background-color: var(--dark-footer-bg-color);
+  color: var(--dark-footer-text-color);
+}
+
+body.ultraDark footer {
+  background-color: var(--ultraDark-footer-bg-color);
+  color: var(--ultraDark-footer-text-color);
+}
+
+body.colorPsychology footer {
+  background-color: var(--colorPsychology-footer-bg-color);
+  color: var(--colorPsychology-footer-text-color);
+}
+
+/* Input styles */
+input {
+  background-color: var(--light-input-bg-color);
+  color: var(--light-input-text-color);
+  border-color: var(--light-input-border-color);
+}
+
+body.dark input {
+  background-color: var(--dark-input-bg-color);
+  color: var(--dark-input-text-color);
+  border-color: var(--dark-input-border-color);
+}
+
+body.ultraDark input {
+  background-color: var(--ultraDark-input-bg-color);
+  color: var(--ultraDark-input-text-color);
+  border-color: var(--ultraDark-input-border-color);
+}
+
+body.colorPsychology input {
+  background-color: var(--colorPsychology-input-bg-color);
+  color: var(--colorPsychology-input-text-color);
+  border-color: var(--colorPsychology-input-border-color);
+}
+
+/* Textarea styles */
+textarea {
+  background-color: var(--light-textarea-bg-color);
+  color: var(--light-textarea-text-color);
+  border-color: var(--light-textarea-border-color);
+}
+
+body.dark textarea {
+  background-color: var(--dark-textarea-bg-color);
+  color: var(--dark-textarea-text-color);
+  border-color: var(--dark-textarea-border-color);
+}
+
+body.ultraDark textarea {
+  background-color: var(--ultraDark-textarea-bg-color);
+  color: var(--ultraDark-textarea-text-color);
+  border-color: var(--ultraDark-textarea-border-color);
+}
+
+body.colorPsychology textarea {
+  background-color: var(--colorPsychology-textarea-bg-color);
+  color: var(--colorPsychology-textarea-text-color);
+  border-color: var(--colorPsychology-textarea-border-color);
+}
+
+/* Textarea active styles */
+textarea:active,
+textarea:focus {
+  background-color: var(--light-textarea-active-bg-color);
+  color: var(--light-textarea-active-text-color);
+}
+
+body.dark textarea:active,
+body.dark textarea:focus {
+  background-color: var(--dark-textarea-active-bg-color);
+  color: var(--dark-textarea-active-text-color);
+}
+
+body.ultraDark textarea:active,
+body.ultraDark textarea:focus {
+  background-color: var(--ultraDark-textarea-active-bg-color);
+  color: var(--ultraDark-textarea-active-text-color);
+}
+
+body.colorPsychology textarea:active,
+body.colorPsychology textarea:focus {
+  background-color: var(--colorPsychology-textarea-active-bg-color);
+  color: var(--colorPsychology-textarea-active-text-color);
+}
+
+/* Textarea selected styles */
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--light-textarea-focus-color);
+}
+
+body.dark textarea:focus {
+  box-shadow: 0 0 0 2px var(--dark-textarea-focus-color);
+}
+
+body.ultraDark textarea:focus {
+  box-shadow: 0 0 0 2px var(--ultraDark-textarea-focus-color);
+}
+
+body.colorPsychology textarea:focus {
+  box-shadow: 0 0 0 2px var(--colorPsychology-textarea-focus-color);
+}
+
+/* AI Interaction styles */
+#aiResponse {
+  background-color: var(--light-ai-response-bg-color);
+  color: var(--light-ai-response-text-color);
+  padding: 20px;
+  border-radius: 5px;
+}
+
+body.dark #aiResponse {
+  background-color: var(--dark-ai-response-bg-color);
+  color: var(--dark-ai-response-text-color);
+}
+
+body.ultraDark #aiResponse {
+  background-color: var(--ultraDark-ai-response-bg-color);
+  color: var(--ultraDark-ai-response-text-color);
+}
+
+body.colorPsychology #aiResponse {
+  background-color: var(--colorPsychology-ai-response-bg-color);
+  color: var(--colorPsychology-ai-response-text-color);
+}
+
+/* Dropdown menu styles */
+.dropdown-menu {
+  background-color: var(--light-dropdown-bg-color);
+  color: var(--light-dropdown-text-color);
+  border-color: var(--light-dropdown-border-color);
+}
+
+body.dark .dropdown-menu {
+  background-color: var(--dark-dropdown-bg-color);
+  color: var(--dark-dropdown-text-color);
+  border-color: var(--dark-dropdown-border-color);
+}
+
+body.ultraDark .dropdown-menu {
+  background-color: var(--ultraDark-dropdown-bg-color);
+  color: var(--ultraDark-dropdown-text-color);
+  border-color: var(--ultraDark-dropdown-border-color);
+}
+
+body.colorPsychology .dropdown-menu {
+  background-color: var(--colorPsychology-dropdown-bg-color);
+  color: var(--colorPsychology-dropdown-text-color);
+  border-color: var(--colorPsychology-dropdown-border-color);
+}
+
+/* Dropdown item styles */
+.dropdown-item {
+  background-color: var(--light-dropdown-item-bg-color);
+  color: var(--light-dropdown-item-text-color);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: var(--light-dropdown-item-hover-bg-color);
+  color: var(--light-dropdown-item-hover-text-color);
+}
+
+body.dark .dropdown-item {
+  background-color: var(--dark-dropdown-item-bg-color);
+  color: var(--dark-dropdown-item-text-color);
+}
+
+body.dark .dropdown-item:hover,
+body.dark .dropdown-item:focus {
+  background-color: var(--dark-dropdown-item-hover-bg-color);
+  color: var(--dark-dropdown-item-hover-text-color);
+}
+
+body.ultraDark .dropdown-item {
+  background-color: var(--ultraDark-dropdown-item-bg-color);
+  color: var(--ultraDark-dropdown-item-text-color);
+}
+
+body.ultraDark .dropdown-item:hover,
+body.ultraDark .dropdown-item:focus {
+  background-color: var(--ultraDark-dropdown-item-hover-bg-color);
+  color: var(--ultraDark-dropdown-item-hover-text-color);
+}
+
+body.colorPsychology .dropdown-item {
+  background-color: var(--colorPsychology-dropdown-item-bg-color);
+  color: var(--colorPsychology-dropdown-item-text-color);
+}
+
+body.colorPsychology .dropdown-item:hover,
+body.colorPsychology .dropdown-item:focus {
+  background-color: var(--colorPsychology-dropdown-item-hover-bg-color);
+  color: var(--colorPsychology-dropdown-item-hover-text-color);
+}
+
+/* -------------- LIGHT CARD / ALERT OVERRIDES -------------- */
+body.light .card {
+  background-color: var(--light-input-bg-color);
+  color: var(--light-text-color);
+  border: 1px solid var(--light-input-border-color);
+}
+body.light .card .card-body {
+  background-color: var(--light-input-bg-color);
+  color: var(--light-text-color);
+}
+body.light .alert {
+  background-color: var(--light-ai-response-bg-color);
+  color: var(--light-text-color);
+  border: 1px solid var(--light-input-border-color);
+}
+
+
+/* -------------- DARK CARD / ALERT OVERRIDES -------------- */
+body.dark .card {
+  background-color: var(--dark-input-bg-color);
+  color: var(--dark-text-color);
+  border: 1px solid var(--dark-input-border-color);
+}
+body.dark .card .card-body {
+  background-color: var(--dark-input-bg-color);
+  color: var(--dark-text-color);
+}
+body.dark .alert {
+  background-color: var(--dark-bg-color);
+  color: var(--dark-text-color);
+  border: 1px solid var(--dark-input-border-color);
+}
+
+
+/* -------------- COLOR PSYCHOLOGY CARD / ALERT OVERRIDES -------------- */
+body.colorPsychology .card {
+  background-color: var(--colorPsychology-input-bg-color);
+  color: var(--colorPsychology-text-color);
+  border: 1px solid var(--colorPsychology-input-border-color);
+}
+body.colorPsychology .card .card-body {
+  background-color: var(--colorPsychology-input-bg-color);
+  color: var(--colorPsychology-text-color);
+}
+body.colorPsychology .alert {
+  background-color: var(--colorPsychology-bg-color);
+  color: var(--colorPsychology-text-color);
+  border: 1px solid var(--colorPsychology-input-border-color);
+}
+
+
+/* -------------- SERENE OCEAN CARD / ALERT OVERRIDES -------------- */
+body.sereneOcean .card {
+  background-color: var(--sereneOcean-input-bg-color);
+  color: var(--sereneOcean-text-color);
+  border: 1px solid var(--sereneOcean-input-border-color);
+}
+body.sereneOcean .card .card-body {
+  background-color: var(--sereneOcean-input-bg-color);
+  color: var(--sereneOcean-text-color);
+}
+body.sereneOcean .alert {
+  background-color: var(--sereneOcean-bg-color);
+  color: var(--sereneOcean-text-color);
+  border: 1px solid var(--sereneOcean-input-border-color);
+}
+
+
+/* -------------- VIBRANT SUNRISE CARD / ALERT OVERRIDES -------------- */
+body.vibrantSunrise .card {
+  background-color: var(--vibrantSunrise-input-bg-color);
+  color: var(--vibrantSunrise-text-color);
+  border: 1px solid var(--vibrantSunrise-input-border-color);
+}
+body.vibrantSunrise .card .card-body {
+  background-color: var(--vibrantSunrise-input-bg-color);
+  color: var(--vibrantSunrise-text-color);
+}
+body.vibrantSunrise .alert {
+  background-color: var(--vibrantSunrise-bg-color);
+  color: var(--vibrantSunrise-text-color);
+  border: 1px solid var(--vibrantSunrise-input-border-color);
+}
+
+
+/* -------------- INTELLIGENCE AGENCY CARD / ALERT OVERRIDES -------------- */
+body.intelligenceAgency .card {
+  /* Was var(--intelligenceAgency-input-bg-color): #ffffff → too bright */
+  background-color: var(--intelligenceAgency-bg-color); 
+  color: var(--intelligenceAgency-text-color);
+  border: 1px solid var(--intelligenceAgency-btn-border-color);
+}
+body.intelligenceAgency .card .card-body {
+  background-color: var(--intelligenceAgency-bg-color);
+  color: var(--intelligenceAgency-text-color);
+}
+body.intelligenceAgency .alert {
+  background-color: var(--intelligenceAgency-bg-color);
+  color: var(--intelligenceAgency-text-color);
+  border: 1px solid var(--intelligenceAgency-btn-border-color);
+}
+
+/* -------------- ULTRADARK CARD / ALERT OVERRIDES -------------- */
+body.ultraDark .card {
+  /* Was var(--ultraDark-input-bg-color): #222222 → user wants it even darker */
+  background-color: var(--ultraDark-bg-color); /* #000000 */
+  color: var(--ultraDark-text-color);          /* #c4c1b6 */
+  border: 1px solid var(--ultraDark-input-border-color); /* #555555 */
+}
+body.ultraDark .card .card-body {
+  background-color: var(--ultraDark-bg-color);
+  color: var(--ultraDark-text-color);
+}
+body.ultraDark .alert {
+  background-color: var(--ultraDark-bg-color);
+  color: var(--ultraDark-text-color);
+  border: 1px solid var(--ultraDark-input-border-color);
+}
+
+
+
+/* For form controls within cards or outside them */
+body.ultraDark .form-control {
+  background-color: var(--ultraDark-input-bg-color);
+  color: var(--ultraDark-text-color);
+  border: 1px solid var(--ultraDark-input-border-color);
+}
+body.ultraDark .form-control:focus {
+  box-shadow: 0 0 0 2px var(--ultraDark-textarea-focus-color);
+  background-color: var(--ultraDark-textarea-active-bg-color);
+  color: var(--ultraDark-textarea-active-text-color);
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: var(--dark-bg-color);
+    color: var(--dark-text-color);
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: 15px;
+  }
+
+  .dropdown-menu {
+    width: 100%;
+    /* Full width on smaller screens */
+  }
+}

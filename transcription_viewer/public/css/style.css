@@ -1,0 +1,186 @@
+/* 1) Import a modern, clean sans-serif font (Inter) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+/* Global resets/improvements */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Base styling */
+body,
+button,
+select,
+input,
+textarea {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Increase text size on smaller devices */
+@media (max-width: 1024px) {
+  body {
+    font-size: 2.125rem; /* ~34px if 1rem=16px */
+    line-height: 1.4;
+  }
+}
+
+/* Then override JUST the nav to keep it smaller */
+@media (max-width: 1024px) {
+  .navbar .navbar-brand,
+  .navbar .nav-link {
+    font-size: 1.5rem; /* ~16px for nav items */
+    line-height: 1.2;
+  }
+  .navbar .navbar-toggler-icon {
+    /* If you need the hamburger icon to scale or remain small, tweak here */
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+}
+
+/* Container constraints */
+.container {
+  max-width: 960px;
+  margin: auto;
+  padding: 0 15px;
+}
+
+/* Navbar spacing/padding */
+.navbar {
+  padding: 0.75rem 1rem;
+}
+
+/* Keep footer small and minimal */
+footer.footer {
+  padding: 8px 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+/* Make transcriptions appear as "cards" with spacing */
+.transcriptions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* space between cards */
+}
+
+.transcription {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.05); /* subtle background for dark themes; overwritten by theme var if needed */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.transcription {
+  /* default for existing items */
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform 0.5s ease, opacity 0.5s ease;
+}
+
+.transcription.slideIn {
+  transform: translateY(-20px); /* start from a bit above */
+  opacity: 0;
+}
+
+.transcription:hover {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+/* For smaller screens, ensure the layout stacks well */
+@media (max-width: 768px) {
+  .transcription {
+    padding: 1rem;
+  }
+}
+
+/* Transcription meta info */
+.transcription-meta {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 0.3rem;
+  display: inline-block; /* keep it on its own "line" above the main text if you prefer */
+}
+
+/* The main transcription text */
+.transcription-text {
+  margin-top: 0.3rem;
+  color: inherit; /* keep color consistent with theme */
+}
+
+.transcription:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* Play button refinements */
+.play-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.25rem;
+  margin-left: 0.5rem;
+  color: inherit;
+  transition: transform 0.2s ease;
+}
+
+.play-button:hover {
+  transform: scale(1.1);
+}
+
+/* If you want the button to appear as an icon only, remove the underline from .btn-link */
+.btn.btn-link.text-decoration-none {
+  text-decoration: none !important;
+}
+
+/* Switch & filter form spacing */
+.form-select,
+.form-check {
+  margin-bottom: 1rem;
+}
+
+label.form-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+/* Auto-play toggle spacing */
+.form-check.form-switch {
+  padding-left: 0; /* reduce default spacing */
+  gap: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.form-check-input {
+  margin-right: 0.5rem;
+  margin-left: 0; /* remove default left margin */
+}
+
+/* Improve focus outline for accessibility */
+.play-button:focus,
+.form-select:focus,
+.form-check-input:focus {
+  outline: 2px solid #0056b3;
+  outline-offset: 2px;
+}
+
+/* Add subtle transitions to interactive elements */
+button,
+select,
+input,
+.play-button {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Darken the hovered dropdown items (Bootstrap override) */
+.dropdown-item:hover,
+.dropdown-item:focus {
+  filter: brightness(95%);
+}

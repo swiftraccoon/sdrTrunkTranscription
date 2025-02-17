@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/_head.ejs') %>
+
+<body data-page="index" data-selected-group="<%= selectedGroup || 'All' %>">
+  <%- include('partials/_header.ejs') %>
+
+  <div class="container mt-4 d-flex justify-content-end">
+    <div class="form-check form-switch">
+      <input 
+        type="checkbox" 
+        class="form-check-input" 
+        id="autoplayToggle" 
+        <%= session.autoplay ? 'checked' : '' %>
+      />
+      <label class="form-check-label" for="autoplayToggle">Auto-Play Audio</label>
+    </div>
+  </div>
+
+  <main role="main" class="container mt-4">
+    <div id="transcriptions" class="transcriptions-list">
+      <% if (transcriptions && transcriptions.length > 0) { %>
+        <% transcriptions.forEach(function(t, idx) { %>
+          <div class="transcription" data-timestamp="<%= t.timestamp %>">
+            <span class="transcription-meta">
+              <%
+                let formattedTimestamp = 'No Timestamp';
+                if (t.timestamp) {
+                  const d = new Date(t.timestamp);
+                  const yyyy = d.getFullYear();
+                  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+                  const dd   = String(d.getDate()).padStart(2, '0');
+                  const hh   = String(d.getHours()).padStart(2, '0');
+                  const min  = String(d.getMinutes()).padStart(2, '0');
+                  const ss   = String(d.getSeconds()).padStart(2, '0');
+                  formattedTimestamp = `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+                }
+              %>
+              <%= formattedTimestamp %> |
+              <%= t.radioId %> to <%= t.talkgroupName %>
+            </span>
+            <button 
+              class="play-button btn btn-link text-decoration-none"
+              data-mp3="<%= t.mp3FilePath %>" 
+              aria-label="Play audio"
+            >
+              &#9658;
+            </button>
+            <div class="transcription-text">
+              <%= t.text %>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <p>No transcriptions available.</p>
+      <% } %>
+    </div>
+  </main>
+
+  <div class="container text-center my-4">
+    <button id="loadMoreBtn" class="btn btn-primary">Load More</button>
+  </div>
+
+  <%- include('partials/_footer.ejs') %>
+
+  <script>
+    window.groupMapping = JSON.parse('<%- JSON.stringify(groupMappings) %>');
+  </script>
+
+  <script src="/js/main.js" type="module"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const groupFilter = document.getElementById('groupFilter');
+      if (groupFilter) {
+        groupFilter.addEventListener('change', () => {
+          location.href = '/?group=' + encodeURIComponent(groupFilter.value);
+        });
+      }
+
+      const autoplayToggle = document.getElementById('autoplayToggle');
+      if (autoplayToggle) {
+        autoplayToggle.addEventListener('change', function () {
+          const autoplayState = this.checked;
+          fetch('/api/toggle-autoplay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ autoplay: autoplayState }),
+          })
+            .then(r => r.json())
+            .then(data => {
+              console.log('Server confirmed autoplay preference:', data);
+            })
+            .catch(err => console.error('Error updating autoplay:', err));
+        });
+      }
+
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+          loadOlderTranscriptions();
+        });
+      }
+
+      function loadOlderTranscriptions() {
+        const container = document.getElementById('transcriptions');
+        if (!container) return;
+
+        const transcriptionDivs = container.querySelectorAll('.transcription');
+        if (transcriptionDivs.length === 0) {
+          console.log('No transcriptions in DOM, nothing to load more from');
+          return;
+        }
+        const lastDiv = transcriptionDivs[transcriptionDivs.length - 1];
+        const lastTimestamp = lastDiv.getAttribute('data-timestamp');
+        if (!lastTimestamp) {
+          console.warn('No data-timestamp on last transcription; cannot load older');
+          return;
+        }
+
+        const selectedGroup = "<%= selectedGroup || 'All' %>";
+        const url = '/api/transcriptions?before=' + encodeURIComponent(lastTimestamp)
+          + (selectedGroup !== 'All'
+              ? ('&group=' + encodeURIComponent(selectedGroup))
+              : '');
+
+        fetch(url)
+          .then(resp => resp.json())
+          .then(moreTrans => {
+            console.log('Fetched older transcriptions:', moreTrans.length);
+            appendTranscriptions(moreTrans);
+          })
+          .catch(err => console.error('Load older error:', err));
+      }
+
+      function appendTranscriptions(newTrans) {
+        const container = document.getElementById('transcriptions');
+        newTrans.forEach(t => {
+          const d = new Date(t.timestamp);
+          const yyyy = d.getFullYear();
+          const mm   = String(d.getMonth() + 1).padStart(2, '0');
+          const dd   = String(d.getDate()).padStart(2, '0');
+          const hh   = String(d.getHours()).padStart(2, '0');
+          const min  = String(d.getMinutes()).padStart(2, '0');
+          const ss   = String(d.getSeconds()).padStart(2, '0');
+          const formattedTimestamp = `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+
+          const div = document.createElement('div');
+          div.classList.add('transcription');
+          div.setAttribute('data-timestamp', t.timestamp);
+          div.innerHTML = `
+            <span class="transcription-meta">
+              ${formattedTimestamp} | ${t.radioId} to ${t.talkgroupName}
+            </span>
+            <button 
+              class="play-button btn btn-link text-decoration-none"
+              data-mp3="${t.mp3FilePath}" 
+              aria-label="Play audio"
+            >
+              &#9658;
+            </button>
+            <div class="transcription-text">${t.text}</div>
+          `;
+
+          container.appendChild(div);
+        });
+      }
+    });
+  </script>
+</body>
+</html>

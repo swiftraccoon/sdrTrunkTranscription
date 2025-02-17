@@ -1,0 +1,142 @@
+<!-- views/adminUsers.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/_head.ejs') %>
+  <title>Admin - Manage Users</title>
+  <style>
+    .nav-tabs {
+      margin-bottom: 1rem;
+    }
+    .alert {
+      animation: fadeOut 5s forwards;
+      animation-delay: 3s;
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; visibility: hidden; }
+    }
+    .admin-info {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <%- include('partials/_header.ejs') %>
+
+  <div class="container mt-4">
+    <!-- Admin Navigation Tabs -->
+    <ul class="nav nav-tabs">
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab === 'users' ? 'active' : '' %>" href="/admin/users">Manage Users</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab === 'llm' ? 'active' : '' %>" href="/admin/llm-interactions">LLM Interactions</a>
+      </li>
+    </ul>
+
+    <!-- Admin Info -->
+    <div class="admin-info">
+      Logged in as: <%= user.username %> | Admin status verified: <%= new Date(adminVerifiedAt).toLocaleTimeString() %>
+    </div>
+
+    <!-- Success Message -->
+    <% if (typeof messages !== 'undefined' && messages.success) { %>
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <%= messages.success %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    <% } %>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Manage Users</h2>
+      <div class="filters">
+        <select id="tierFilter" class="form-select d-inline-block w-auto">
+          <option value="">All Tiers</option>
+          <option value="registered">Registered</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead class="table-light">
+          <tr>
+            <th>Username</th>
+            <th>Current Tier</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        <% if (users && users.length > 0) { %>
+          <% users.forEach(function(listUser) { %>
+            <tr class="user-row" data-tier="<%= listUser.tier.toLowerCase() %>">
+              <td><%= listUser.username %></td>
+              <td>
+                <% if (listUser._id.toString() === user._id.toString()) { %>
+                  <span class="badge bg-primary"><%= listUser.tier %></span>
+                  <small class="text-muted">(Cannot modify own tier)</small>
+                <% } else { %>
+                  <form action="/admin/users/<%= listUser._id %>/tier" method="POST" class="d-inline">
+                    <select name="newTier" class="form-select d-inline w-auto" aria-label="Tier select">
+                      <option value="registered" <%= listUser.tier === 'registered' ? 'selected' : '' %>>registered</option>
+                      <option value="admin" <%= listUser.tier === 'admin' ? 'selected' : '' %>>admin</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Update</button>
+                  </form>
+                <% } %>
+              </td>
+              <td>
+                <%= new Date(listUser.createdAt).toLocaleDateString() %>
+              </td>
+              <td>
+                <button class="btn btn-info btn-sm view-activity" data-user-id="<%= listUser._id %>">
+                  View Activity
+                </button>
+              </td>
+            </tr>
+          <% }); %>
+        <% } else { %>
+          <tr>
+            <td colspan="4" class="text-center">No users found.</td>
+          </tr>
+        <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%- include('partials/_footer.ejs') %>
+  
+  <script>
+    // Client-side filtering for users by tier
+    document.getElementById('tierFilter').addEventListener('change', function() {
+      const selectedTier = this.value.toLowerCase();
+      document.querySelectorAll('.user-row').forEach(row => {
+        const userTier = row.getAttribute('data-tier');
+        row.style.display = !selectedTier || userTier === selectedTier ? '' : 'none';
+      });
+    });
+
+    // Activity view handlers (to be implemented)
+    document.querySelectorAll('.view-activity').forEach(button => {
+      button.addEventListener('click', function() {
+        const userId = this.getAttribute('data-user-id');
+        // TODO: Implement activity view modal or redirect
+        alert('Activity view coming soon!');
+      });
+    });
+
+    // Auto-dismiss alerts after animation
+    document.querySelectorAll('.alert').forEach(alert => {
+      setTimeout(() => {
+        alert.remove();
+      }, 8000);
+    });
+  </script>
+</body>
+</html>

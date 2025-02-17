@@ -1,0 +1,66 @@
+<nav class="navbar navbar-expand-md">
+  <a class="navbar-brand" href="/">transcriptionViewer</a>
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav"
+    aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+  <div class="collapse navbar-collapse" id="navbarNav">
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" href="/">Home</a>
+      </li>
+      <li class="nav-item">
+        <% if (session && session.userId) { %>
+          <a class="nav-link" href="/auth/logout">Logout</a>
+        <% } else { %>
+          <a class="nav-link" href="/auth/login">Login</a>
+        <% } %>
+      </li>
+      <% if (session && session.userId) { %>
+        <li class="nav-item">
+          <a class="nav-link" href="/search-form">Search</a>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="filterDropdown" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            TGID Filter
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+            <% if (typeof groups !== 'undefined' && Array.isArray(groups) && groups.length > 0) { %>
+              <% groups.forEach(function(group) { %>
+                <li>
+                  <a class="dropdown-item" href="/?group=<%= encodeURIComponent(group) %>">
+                    <%= group %>
+                  </a>
+                </li>
+              <% }) %>
+            <% } else { %>
+              <li><span class="dropdown-item text-muted">No groups available</span></li>
+            <% } %>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="themeDropdown" role="button" data-bs-toggle="dropdown"
+            aria-expanded="false">
+            More
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="themeDropdown">
+            <li><a class="dropdown-item" href="/ai">LLM</a></li>
+            <li><a class="dropdown-item" href="/subscriptions">Subscriptions</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <span class="dropdown-item-text fw-bold ps-3">Theme</span>
+              <a class="dropdown-item ps-4" href="#" data-theme="light">Light</a>
+              <a class="dropdown-item ps-4" href="#" data-theme="dark">Dark</a>
+              <a class="dropdown-item ps-4" href="#" data-theme="ultraDark">Ultra Dark</a>
+              <a class="dropdown-item ps-4" href="#" data-theme="colorPsychology">Color Psychology</a>
+              <a class="dropdown-item ps-4" href="#" data-theme="vibrantSunrise">Vibrant Sunrise</a>
+              <a class="dropdown-item ps-4" href="#" data-theme="sereneOcean">Serene Ocean</a>
+              <a class="dropdown-item ps-4" href="#" data-theme="intelligenceAgency">Intelligence Agency</a>
+            </li>
+          </ul>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</nav>

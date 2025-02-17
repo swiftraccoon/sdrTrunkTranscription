@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/_head.ejs') %>
+  <title>Admin - LLM Interactions</title>
+  <style>
+    .interaction-card {
+      margin-bottom: 1rem;
+      border-left: 4px solid #007bff;
+    }
+    .metadata {
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .nav-tabs {
+      margin-bottom: 1rem;
+    }
+    .prompt-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .prompt-toggle:hover {
+      color: #0056b3;
+    }
+    .prompt-toggle i {
+      transition: transform 0.2s ease;
+    }
+    .prompt-toggle.collapsed i {
+      transform: rotate(-90deg);
+    }
+    .prompt-content {
+      transition: max-height 0.3s ease-out;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <%- include('partials/_header.ejs') %>
+
+  <div class="container mt-4">
+    <!-- Admin Navigation Tabs -->
+    <ul class="nav nav-tabs">
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab === 'users' ? 'active' : '' %>" href="/admin/users">Manage Users</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link <%= activeTab === 'llm' ? 'active' : '' %>" href="/admin/llm-interactions">LLM Interactions</a>
+      </li>
+    </ul>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>LLM Interactions</h2>
+      <div class="filters">
+        <select id="modelFilter" class="form-select d-inline-block w-auto">
+          <option value="">All Models</option>
+          <option value="gpt-4">GPT-4</option>
+          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          <option value="palm2">PaLM 2</option>
+        </select>
+        <select id="serviceFilter" class="form-select d-inline-block w-auto ml-2">
+          <option value="">All Services</option>
+          <option value="openai">OpenAI</option>
+          <option value="google">Google</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="interactions-container">
+      <% if (interactions && interactions.length > 0) { %>
+        <% interactions.forEach(function(interaction, index) { %>
+          <div class="card interaction-card">
+            <div class="card-body">
+              <div class="metadata mb-2">
+                <strong>User:</strong> <%= interaction.userId ? interaction.userId.username : 'Unknown' %> |
+                <strong>Service:</strong> <%= interaction.llmService %> |
+                <strong>Model:</strong> <%= interaction.modelName %> |
+                <strong>Date:</strong> <%= new Date(interaction.createdAt).toLocaleString() %> |
+                <strong>Duration:</strong> <%= (new Date(interaction.endDate) - new Date(interaction.startDate)) / 1000 %>s |
+                <strong>Transcriptions Used:</strong> <%= interaction.transcriptionCount %>
+              </div>
+              <div class="prompt mb-2">
+                <div class="prompt-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#prompt-<%= index %>">
+                  <i class="fas fa-chevron-down"></i>
+                  <strong>Prompt & Transcriptions:</strong>
+                  <small class="text-muted">(click to expand)</small>
+                </div>
+                <div class="collapse" id="prompt-<%= index %>">
+                  <pre class="bg-light p-2 rounded mt-2"><%= interaction.prompt %></pre>
+                </div>
+              </div>
+              <div class="response mb-2">
+                <div class="prompt-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#response-<%= index %>">
+                  <i class="fas fa-chevron-down"></i>
+                  <strong>Response:</strong>
+                  <small class="text-muted">(click to expand)</small>
+                </div>
+                <div class="collapse" id="response-<%= index %>">
+                  <pre class="bg-light p-2 rounded mt-2"><%= interaction.response %></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <div class="alert alert-info">No LLM interactions found.</div>
+      <% } %>
+    </div>
+  </div>
+
+  <%- include('partials/_footer.ejs') %>
+  
+  <script>
+    // Client-side filtering
+    document.getElementById('modelFilter').addEventListener('change', filterInteractions);
+    document.getElementById('serviceFilter').addEventListener('change', filterInteractions);
+
+    function filterInteractions() {
+      const modelFilter = document.getElementById('modelFilter').value.toLowerCase();
+      const serviceFilter = document.getElementById('serviceFilter').value.toLowerCase();
+      
+      document.querySelectorAll('.interaction-card').forEach(card => {
+        const modelName = card.querySelector('[data-model]').getAttribute('data-model').toLowerCase();
+        const serviceName = card.querySelector('[data-service]').getAttribute('data-service').toLowerCase();
+        
+        const modelMatch = !modelFilter || modelName.includes(modelFilter);
+        const serviceMatch = !serviceFilter || serviceName.includes(serviceFilter);
+        
+        card.style.display = modelMatch && serviceMatch ? 'block' : 'none';
+      });
+    }
+
+    // Toggle arrow rotation for prompts
+    document.querySelectorAll('.prompt-toggle').forEach(toggle => {
+      toggle.addEventListener('click', function() {
+        this.classList.toggle('collapsed');
+      });
+    });
+  </script>
+</body>
+</html> 

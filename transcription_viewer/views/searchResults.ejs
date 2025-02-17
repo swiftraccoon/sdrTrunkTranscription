@@ -1,0 +1,40 @@
+<!-- views/searchResults.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/_head.ejs') %>
+<body data-page="searchResults">
+  <%- include('partials/_header.ejs') %>
+  
+  <main role="main" class="container mt-4">
+    <h2>Search Results</h2>
+    <!-- Optional: add a link to go back to the search form -->
+    <p><a href="/search-form?<%= query ? Object.entries(query).filter(([key, value]) => value).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&') : '' %>" class="btn btn-secondary btn-sm">Refine Search</a></p>
+
+    <div id="transcriptions" class="transcriptions-list">
+      <% if (transcriptions.length > 0) { %>
+        <% transcriptions.forEach(function(transcription) { %>
+          <div class="transcription">
+            <span class="transcription-meta">
+              <%= new Date(transcription.timestamp).toLocaleString() %> | 
+              <%= transcription.radioId %> to <%= transcription.talkgroupId %>
+            </span>
+            <button class="play-button" data-mp3="<%= transcription.mp3FilePath %>">&#9658;</button>
+            <span class="transcription-text">
+              <%= transcription.text %>
+            </span>
+            <audio controls style="display: none;">
+              <source src="<%= transcription.mp3FilePath %>" type="audio/mpeg">
+              Your browser does not support the audio tag.
+            </audio>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <p>No transcriptions found.</p>
+      <% } %>
+    </div>
+  </main>
+
+  <%- include('partials/_footer.ejs') %>
+  <script src="/js/main.js"></script>
+</body>
+</html>

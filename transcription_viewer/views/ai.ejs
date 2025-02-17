@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/_head.ejs') %>
+  <body>
+    <%- include('partials/_header.ejs') %>
+
+    <div class="container mt-4">
+      <style>
+        .prompt-toggle {
+          cursor: pointer;
+          user-select: none;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+        .prompt-toggle:hover {
+          color: #0056b3;
+        }
+        .prompt-toggle i {
+          transition: transform 0.2s ease;
+        }
+        .prompt-toggle.collapsed i {
+          transform: rotate(-90deg);
+        }
+        .prompt-content {
+          transition: max-height 0.3s ease-out;
+          overflow: hidden;
+        }
+      </style>
+
+      <h2>LLM Analysis</h2>
+
+      <!-- Data Usage Notice -->
+      <div class="alert alert-info mb-4">
+        <h5 class="alert-heading"><i class="fas fa-info-circle"></i> Data Usage Notice</h5>
+        <p class="mb-2">All LLM analyses, including prompts, transcriptions used, and responses, are automatically saved and accessible in the History tab.</p>
+        <hr>
+        <p class="mb-1"><strong>By using this service, you acknowledge and agree that:</strong></p>
+        <ul class="mb-0">
+          <li>We retain the right to store all data indefinitely</li>
+          <li>Data may be used for any purpose without prior notice</li>
+          <li>We are not obligated to disclose how your data is being utilized</li>
+          <li>Data may be shared with third parties at our discretion</li>
+          <li>No guarantee of data deletion upon request</li>
+        </ul>
+      </div>
+
+      <!-- Tab Navigation -->
+      <ul class="nav nav-tabs mb-4" id="aiTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="query-tab" data-bs-toggle="tab" data-bs-target="#query" type="button" role="tab" aria-controls="query" aria-selected="true">New Query</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false">History</button>
+        </li>
+      </ul>
+
+      <!-- Tab Content -->
+      <div class="tab-content" id="aiTabContent">
+        <!-- Query Tab -->
+        <div class="tab-pane fade show active" id="query" role="tabpanel" aria-labelledby="query-tab">
+          <div class="card mb-4">
+            <div class="card-body">
+              <h5 class="card-title">Configuration</h5>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="llmService" class="form-label">LLM Service</label>
+                  <select id="llmService" class="form-select" onchange="updateModelOptions()">
+                    <option value="openai">OpenAI</option>
+                    <option value="google">Google AI</option>
+                  </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label for="modelName" class="form-label">Model</label>
+                  <select id="modelName" class="form-select">
+                    <!-- OpenAI Models -->
+                    <option value="gpt-4" data-context="8192">GPT-4 (8K context)</option>
+                    <option value="gpt-4-turbo" data-context="128000">GPT-4 Turbo (128K context)</option>
+                    <option value="gpt-3.5-turbo" data-context="16385">GPT-3.5 Turbo (16K context)</option>
+                    <option value="gpt-4o" data-context="128000">GPT-4o (128K context)</option>
+                    <option value="gpt-4o-mini" data-context="128000">GPT-4o Mini (128K context)</option>
+                    <option value="o1-mini" data-context="128000">o1-mini (128K context)</option>
+                    <option value="o1-preview" data-context="128000">o1-preview (128K context)</option>
+                    <option value="gpt-4o-realtime-preview" data-context="128000">GPT-4o Realtime Preview (128K context)</option>
+                    <option value="gpt-4o-mini-realtime-preview" data-context="128000">GPT-4o Mini Realtime Preview (128K context)</option>
+                    <option value="gpt-4o-audio-preview" data-context="128000">GPT-4o Audio Preview (128K context)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label for="apiKey" class="form-label">API Key</label>
+                <input type="password" id="apiKey" class="form-control" placeholder="Enter your API key">
+                <small class="text-muted">Your API key is never stored and only used for this session.</small>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="startDate" class="form-label">Start Date & Time</label>
+                  <input type="datetime-local" id="startDate" class="form-control">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label for="endDate" class="form-label">End Date & Time</label>
+                  <input type="datetime-local" id="endDate" class="form-control">
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-md-12 mb-3">
+                  <label for="tgidsFilter" class="form-label">TGIDs Filter</label>
+                  <input type="text" id="tgidsFilter" class="form-control" placeholder="Enter TGIDs separated by commas">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="aiChatBox" class="mb-3">
+            <textarea id="userInput" class="form-control mb-2">Summarize all these radio transcriptions into a news report of the day as if it's an intelligence briefing. Ensure to call out specific identifiers (names, full addresses, license number, etc) for each report so we can refer to our intelligence databases for more information.</textarea>
+            <button onclick="sendQuery()" class="btn btn-primary">Ask AI</button>
+          </div>
+
+          <div id="aiResponse" class="mt-3"></div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+          <div id="interactionHistory" class="mt-3">
+            <!-- History items will be loaded here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%- include('partials/_footer.ejs') %>
+
+    <!-- Marked CDN script for client-side Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/js/aiInteraction.js"></script>
+    <script src="/js/main.js"></script>
+  </body>
+</html>

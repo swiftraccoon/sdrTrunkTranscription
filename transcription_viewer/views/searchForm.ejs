@@ -1,0 +1,167 @@
+<!-- views/searchForm.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/_head.ejs') %>
+<body>
+  <%- include('partials/_header.ejs') %>
+
+  <main role="main" class="container mt-4">
+    <h2>Search Transcriptions</h2>
+
+    <!-- The Search Form -->
+    <form action="/search" method="get" class="mt-4">
+      <div class="mb-3">
+        <label for="keyword" class="form-label">Keyword</label>
+        <input 
+          type="text" 
+          class="form-control" 
+          id="keyword" 
+          name="keyword" 
+          placeholder="Enter keyword"
+          value="<%= query?.keyword || '' %>"
+        >
+      </div>
+
+      <div class="mb-3">
+        <label for="startDate" class="form-label">Start Date</label>
+        <input 
+          type="date" 
+          class="form-control" 
+          id="startDate" 
+          name="startDate"
+          value="<%= query?.startDate || '' %>"
+        >
+      </div>
+
+      <div class="mb-3">
+        <label for="endDate" class="form-label">End Date</label>
+        <input 
+          type="date" 
+          class="form-control" 
+          id="endDate" 
+          name="endDate" 
+          value="<%= query?.endDate || '' %>"
+        >
+      </div>
+
+      <div class="mb-3">
+        <label for="startTime" class="form-label">Start Time</label>
+        <input 
+          type="time" 
+          class="form-control" 
+          id="startTime" 
+          name="startTime"
+          value="<%= query?.startTime || '00:00' %>"
+        >
+      </div>
+
+      <div class="mb-3">
+        <label for="endTime" class="form-label">End Time</label>
+        <input 
+          type="time" 
+          class="form-control" 
+          id="endTime" 
+          name="endTime"
+          value="<%= query?.endTime || '23:59' %>"
+        >
+      </div>
+
+      <div class="mb-3 position-relative">
+        <!-- We'll place the dropdown within this container to position it absolutely -->
+        <label for="talkgroupId" class="form-label">Talkgroup ID</label>
+        <input 
+          type="text" 
+          class="form-control" 
+          id="talkgroupId" 
+          name="talkgroupId" 
+          placeholder="Enter Talkgroup ID"
+          autocomplete="off"
+          value="<%= query?.talkgroupId || '' %>"
+        >
+        <!-- The container for our type-ahead suggestions -->
+        <ul 
+          id="tgidSuggestions" 
+          class="list-group position-absolute w-100" 
+          style="display: none; top:100%; z-index: 999;"
+        ></ul>
+      </div>
+
+      <div class="mb-3">
+        <label for="radioId" class="form-label">Radio ID</label>
+        <input 
+          type="text" 
+          class="form-control" 
+          id="radioId" 
+          name="radioId" 
+          placeholder="Enter Radio ID"
+          value="<%= query?.radioId || '' %>"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+  </main>
+
+  <%- include('partials/_footer.ejs') %>
+
+  <script src="/js/main.js"></script>
+  <script>
+    // 1) Type-ahead logic for Talkgroup ID
+    (function() {
+      const talkgroupInput = document.getElementById('talkgroupId');
+      const suggestionsBox = document.getElementById('tgidSuggestions');
+
+      if (!talkgroupInput) return;
+
+      let currentFetch = null;
+
+      talkgroupInput.addEventListener('input', async (e) => {
+        const query = e.target.value.trim();
+        if (!query) {
+          suggestionsBox.style.display = 'none';
+          return;
+        }
+
+        // Cancel any previous request (optional advanced feature)
+        if (currentFetch && typeof currentFetch.cancel === 'function') {
+          currentFetch.cancel();
+        }
+
+        try {
+          // fetch talkgroup suggestions from server
+          const res = await fetch('/search/talkgroups?term=' + encodeURIComponent(query));
+          const data = await res.json();
+
+          // Populate suggestions
+          suggestionsBox.innerHTML = '';
+          data.forEach(tg => {
+            const li = document.createElement('li');
+            // Display "decimal - alphaTag" 
+            const displayText = tg.alphaTag 
+              ? `${tg.decimal} - ${tg.alphaTag}` 
+              : tg.decimal;
+            li.textContent = displayText;
+            li.classList.add('list-group-item');
+            li.addEventListener('click', () => {
+              talkgroupInput.value = tg.decimal;
+              suggestionsBox.style.display = 'none';
+            });
+            suggestionsBox.appendChild(li);
+          });
+
+          suggestionsBox.style.display = data.length ? 'block' : 'none';
+        } catch (err) {
+          console.error('Error fetching talkgroup suggestions:', err);
+        }
+      });
+
+      // Hide suggestions on outside click
+      document.addEventListener('click', (event) => {
+        if (!suggestionsBox.contains(event.target) && event.target !== talkgroupInput) {
+          suggestionsBox.style.display = 'none';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

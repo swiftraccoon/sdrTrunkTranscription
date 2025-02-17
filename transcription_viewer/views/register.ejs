@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/_head.ejs') %>
+
+  <body>
+    <%- include('partials/_header.ejs') %>
+      <main role="main" class="container mt-5">
+        <h2>Register</h2>
+        <form action="/auth/register" method="POST" class="mt-4">
+          <div class="mb-3">
+            <input type="text" name="username" placeholder="Username" required class="form-control">
+          </div>
+          <div class="mb-3">
+            <input type="password" name="password" placeholder="Password" required class="form-control">
+          </div>
+          <div class="mb-3">
+            <button type="submit" class="btn btn-primary mr-2">Register</button>
+            Already have an account? <a href="/auth/login">Login</a>
+          </div>
+        </form>
+      </main>
+      <%- include('partials/_footer.ejs') %>
+        <script src="/js/main.js"></script>
+  </body>
+
+</html>

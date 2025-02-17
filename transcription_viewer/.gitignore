@@ -1,0 +1,12 @@
+node_modules/
+logs/
+uploads/
+.env
+fullchain.pem
+privkey.pem
+node_modules
+subscriptions.db
+utils/trs_tg_7118.csv
+mydb_dump/
+localhost.crt
+localhost.key
