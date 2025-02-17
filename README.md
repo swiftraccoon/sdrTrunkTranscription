@@ -88,7 +88,7 @@ Each subdirectory includes a dedicated README covering details specific to that 
 
 ## Installation & Setup
 
-Below is a high-level guide on installing and configuring **all three** components. For more detailed instructions, consult each subproject’s README (linked within each section).
+Below is a high-level guide on installing and configuring **all three** components. For more detailed instructions, consult each subproject's README (linked within each section).
 
 ### Prerequisites
 
@@ -115,7 +115,7 @@ Below is a high-level guide on installing and configuring **all three** componen
 - Watches a root directory (e.g., `/path/to/SDRTrunk/recordings`) for new `.mp3` files.
 - Transcribes them using [Faster Whisper](https://github.com/SYSTRAN/faster-whisper).
 - Saves the `.txt` transcription alongside the `.mp3`, organized by talkgroup subfolders.
-- Moves files below a threshold duration (e.g., 1.5s) to a “tooShortOrError” folder.
+- Moves files below a threshold duration (e.g., 1.5s) to a "tooShortOrError" folder.
 
 **Key Steps**  
 1. **Install Dependencies**:  
@@ -169,7 +169,7 @@ Below is a high-level guide on installing and configuring **all three** componen
 
 **Location**: `transcription_viewer/`
 
-**Primary Entry**: `app.js` or `index.js` (depending on naming)
+**Primary Entry**: `server.js`
 
 **Summary**  
 - Node.js/Express app that receives your `.mp3` and `.txt` data via an API route (secured with `X-API-Key`).  
@@ -192,9 +192,26 @@ Below is a high-level guide on installing and configuring **all three** componen
    # For optional AI usage
    OPENAI_API_KEY=your_openai_key
    ```
-4. **Run**:
+4. **Run** (choose one option):
    ```bash
+   # Option 1: Direct Node.js execution
    npm start
+   ```
+   
+   ```bash
+   # Option 2: Using PM2 for process management
+   # First install PM2 globally if you haven't:
+   npm install -g pm2
+   
+   # Start the application with PM2
+   pm2 start --name "transcription-viewer" server.js
+   
+   # Some useful PM2 commands:
+   pm2 status                  # Check status
+   pm2 logs transcription-viewer   # View logs
+   pm2 restart transcription-viewer # Restart app
+   pm2 save                    # Save process list
+   pm2 startup                 # Generate startup script
    ```
    By default, it listens on port `3000` (configurable).
 
@@ -206,7 +223,7 @@ Below is a high-level guide on installing and configuring **all three** componen
 
 1. **SDRTrunk** (or an equivalent SDR recorder) saves `.mp3` files to a known directory.  
 2. **SDRTrunk Transcriber** sees these new `.mp3`s, transcribes them, and writes `.txt` transcript files in the same directory (or a subfolder).  
-3. **Transcription Uploader** (Rust) detects new/modified `.mp3` & `.txt` pairs. Once stable, it uploads them to the **Transcription Viewer**’s API endpoint.  
+3. **Transcription Uploader** (Rust) detects new/modified `.mp3` & `.txt` pairs. Once stable, it uploads them to the **Transcription Viewer**'s API endpoint.  
 4. **Transcription Viewer** inserts the data into MongoDB, caches it, and immediately pushes real-time updates via WebSockets to connected browser clients.  
 5. Optionally, user logins (with different tiers) can manage advanced features (LLM analysis, pagination, etc.).
 
@@ -242,7 +259,7 @@ Below is a minimal example of running everything on a single machine. (Adjust pa
 
 ## Systemd Services
 
-All three components can be run as systemd services for automatic startup and reliability on Linux systems. Each subproject’s README provides example `.service` files. For instance:
+All three components can be run as systemd services for automatic startup and reliability on Linux systems. Each subproject's README provides example `.service` files. For instance:
 
 - **SDRTrunk Transcriber**: `sdrtrunk-transcriber.service`
 - **Transcription Uploader**: `transcription_uploader.service`
@@ -284,19 +301,19 @@ General steps:
 
 ## Contributing
 
-Contributions are welcome! If you’d like to report a bug, request a feature, or submit a pull request:
+Contributions are welcome! If you'd like to report a bug, request a feature, or submit a pull request:
 
 1. **Fork** this repository.
 2. **Create a new branch** for your feature/fix.
 3. **Commit and push** your changes.
 4. **Submit a Pull Request** describing the change.
 
-Please see each subproject’s README for more specific contribution guidelines and coding styles.
+Please see each subproject's README for more specific contribution guidelines and coding styles.
 
 ---
 
 ### Thank You!
 
-We hope this **SDRTrunk Transcription Suite** helps you efficiently manage, transcribe, upload, and view your SDRTrunk `.mp3` recordings. For detailed usage and custom configurations, refer to each subfolder’s README. If you have ideas for improvement or additional features, feel free to open an issue or share your thoughts!
+We hope this **SDRTrunk Transcription Suite** helps you efficiently manage, transcribe, upload, and view your SDRTrunk `.mp3` recordings. For detailed usage and custom configurations, refer to each subfolder's README. If you have ideas for improvement or additional features, feel free to open an issue or share your thoughts!
 
 Enjoy your fully automated transcription pipeline!
