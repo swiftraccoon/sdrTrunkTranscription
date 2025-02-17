@@ -216,6 +216,17 @@ class TalkgroupConfig {
     return ['All'].concat(Object.keys(this.groups));
   }
 
+  getGroupMappings() {
+    const groupMappings = {};
+    const groupKeys = (process.env.GROUP_KEYS || '').split(',');
+    groupKeys.forEach(key => {
+      if (process.env[key.trim()]) {
+        groupMappings[key.trim()] = process.env[key.trim()];
+      }
+    });
+    return groupMappings;
+  }
+
   getGroupIds(groupName) {
     // e.g. this.groups['EMS'] = [
     //   { type: 'single', value: 1 },

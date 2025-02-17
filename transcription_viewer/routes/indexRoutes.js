@@ -14,25 +14,20 @@ router.get('/login', (req, res) => {
 
 router.get('/', isAuthenticated, tierAccessControl, async (req, res) => {
   try {
-    // All users get the same limit now
+    const selectedGroup = req.query.group || 'All';
     const limit = 30;
+    const userTier = res.locals.userTier; // Get userTier from res.locals
 
-    const selectedGroup = req.query.group;
+    // Get available groups
     const groups = talkgroupConfig.getAllGroups();
-    // Send the raw group mappings from env instead of processed ones
-    const groupMappings = {};
-    const groupKeys = (process.env.GROUP_KEYS || '').split(',');
-    groupKeys.forEach(key => {
-      if (process.env[key.trim()]) {
-        groupMappings[key.trim()] = process.env[key.trim()];
-      }
-    });
+    const groupMappings = talkgroupConfig.getGroupMappings();
 
-    // Simple caching for initial load
-    const transcriptionsCacheKey = `recent_transcriptions_${limit}_${selectedGroup || 'All'}`;
+    // Cache key includes user tier and selected group
+    const transcriptionsCacheKey = `recent_transcriptions_${limit}_${selectedGroup}`;
     let transcriptions = cacheService.getFromCache(transcriptionsCacheKey);
 
     if (!transcriptions) {
+      console.log(`Cache miss for key: ${transcriptionsCacheKey}`);
       const query = {};
       if (selectedGroup && selectedGroup !== 'All') {
         try {
@@ -62,9 +57,9 @@ router.get('/', isAuthenticated, tierAccessControl, async (req, res) => {
       });
 
       cacheService.saveToCache(transcriptionsCacheKey, transcriptions);
-      console.log(`Fetched & cached for tier='${userTier}', group='${selectedGroup || 'All'}'`);
+      console.log(`Fetched & cached for tier='${userTier}', group='${selectedGroup}'`);
     } else {
-      console.log(`Fetched from cache for tier='${userTier}', group='${selectedGroup || 'All'}'`);
+      console.log(`Fetched from cache for tier='${userTier}', group='${selectedGroup}'`);
     }
 
     // Render index
