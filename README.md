@@ -9,7 +9,7 @@ Welcome to the **SDRTrunk Transcription Suite**, a collection of integrated tool
 This repository combines three major components:
 
 1. **SDRTrunk Transcriber (Python)**  
-   - Monitors a directory for new `.mp3` files, automatically transcribes them using [Faster Whisper](https://github.com/guillaumekln/faster-whisper), and organizes the results.
+   - Monitors a directory for new `.mp3` files, automatically transcribes them using [Faster Whisper](https://github.com/SYSTRAN/faster-whisper), and organizes the results.
 
 2. **Transcription Uploader (Rust)**  
    - Watches the transcribed `.mp3` files (and their companion `.txt` transcripts) for changes and uploads them to a remote API endpoint.
@@ -46,7 +46,7 @@ Although each component can function independently, they are designed to work to
 ## Key Features
 
 - **Automated Transcription**  
-  - Detects new `.mp3` recordings from SDRTrunk and transcribes them via [Faster Whisper](https://github.com/guillaumekln/faster-whisper).
+  - Detects new `.mp3` recordings from SDRTrunk and transcribes them via [Faster Whisper](https://github.com/SYSTRAN/faster-whisper).
 - **Flexible Architecture**  
   - Each piece (Transcriber, Uploader, Viewer) can run standalone or as a unified pipeline.
 - **Scalable Uploader**  
@@ -113,7 +113,7 @@ Below is a high-level guide on installing and configuring **all three** componen
 
 **Summary**  
 - Watches a root directory (e.g., `/path/to/SDRTrunk/recordings`) for new `.mp3` files.
-- Transcribes them using [Faster Whisper](https://github.com/guillaumekln/faster-whisper).
+- Transcribes them using [Faster Whisper](https://github.com/SYSTRAN/faster-whisper).
 - Saves the `.txt` transcription alongside the `.mp3`, organized by talkgroup subfolders.
 - Moves files below a threshold duration (e.g., 1.5s) to a “tooShortOrError” folder.
 
