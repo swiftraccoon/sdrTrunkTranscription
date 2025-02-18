@@ -74,7 +74,7 @@ router.post(
         return res.status(409).send('Duplicate transcription');
       }
 
-      // Attempt to create doc
+      // Create document
       let newTranscription;
       try {
         newTranscription = await Transcription.create({
@@ -95,9 +95,9 @@ router.post(
 
       console.log(`New transcription saved: ${newTranscription._id}`);
 
-      // Invalidate cache for all groups (if you intend to store group-based caches)
+      // Invalidate cache for all groups
       const groupList = talkgroupConfig.getAllGroups();
-      const limit = 30; // The same limit for all
+      const limit = 30;
 
       for (const group of groupList) {
         const cacheKey = `recent_transcriptions_${limit}_${group}`;
@@ -109,32 +109,41 @@ router.post(
         }
       }
 
-      // Also invalidate the general 'recent_transcriptions' key
+      // Also invalidate the general 'recent_transcriptions' key (if used)
       cacheService.invalidateCache('recent_transcriptions');
 
       // ------------------------------------------------------
-      // Rebuild the group-based cache (ONLY if you need it)
-      // For each group, fetch the latest 30 transcriptions
-      //    that belong to that group, then store in cache.
+      // Rebuild each group's cache. We do the same logic as in indexRoutes:
+      //   if group === 'All', we .find({}).
+      //   else we find docs whose talkgroupId is in that group's ID array.
       // ------------------------------------------------------
       for (const group of groupList) {
-        const groupTranscriptions = await Transcription.find({ talkgroupId: group })
+        let query = {};
+
+        if (group !== 'All') {
+          // talkgroupConfig.getGroupIds(group) must return an array
+          // of talkgroupIds that belong to this group
+          const groupIds = talkgroupConfig.getGroupIds(group);
+          query = { talkgroupId: { $in: groupIds } };
+        }
+        // If group === 'All', query remains {}
+
+        const groupTranscriptions = await Transcription.find(query)
           .sort({ timestamp: -1 })
           .limit(limit);
 
         cacheService.saveToCache(`recent_transcriptions_${limit}_${group}`, groupTranscriptions);
       }
 
-      // Rebuild the 'recent_transcriptions' cache (the global cache)
+      // Optionally, rebuild your global "recent_transcriptions" cache
+      // with the top 30 sitewide
       const recentTranscriptions = await Transcription.find({})
         .sort({ timestamp: -1 })
-        .limit(limit)
-        .catch((error) => {
-          console.error('Error fetching recent transcriptions for cache update:', error);
-          throw error;
-        });
+        .limit(limit);
+
       cacheService.saveToCache('recent_transcriptions', recentTranscriptions);
-      console.log('Cache updated with the most recent transcriptions.');
+
+      console.log('Cache updated with the most recent transcriptions (including "All").');
 
       // Notify connected clients about the new doc
       broadcastNewTranscription(newTranscription);
@@ -168,10 +177,12 @@ router.post('/api/toggle-autoplay', (req, res) => {
   // Update the WebSocket service's state
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN && client.userId === req.session.userId) {
-      client.send(JSON.stringify({
-        action: 'autoplayStatus',
-        autoplay: newAutoplayValue,
-      }));
+      client.send(
+        JSON.stringify({
+          action: 'autoplayStatus',
+          autoplay: newAutoplayValue,
+        }),
+      );
     }
   });
 
