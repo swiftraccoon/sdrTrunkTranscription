@@ -1,22 +1,22 @@
 const WebSocket = require('ws');
-const cacheService = require('./cacheService'); // Assuming correct path to cacheService
-const Transcription = require('./models/Transcription'); // Import the Transcription model
+const cacheService = require('./cacheService');
+const Transcription = require('./models/Transcription');
 const Subscription = require('./models/Subscription');
 const emailService = require('./services/emailService');
-const logger = require('./utils/logger'); // Import the logger utility
+const logger = require('./utils/logger');
 const { fetchLatestTranscriptions } = require('./utils/fetchLatestTranscriptions');
 const talkgroupConfig = require('./utils/talkgroupConfig');
 
 // Create a WebSocket server
 const wss = new WebSocket.Server({ noServer: true });
 
-// Create an array to act as a queue for MP3 file paths
+// Instead of storing just mp3 file paths, store objects with { path, talkgroupId }
 const mp3PlaybackQueue = [];
 
-// Map to track user autoplay preferences
+// Track each user's autoplay preference
 const userAutoplayPreferences = {};
 
-// Variable to track currently playing audio for each user
+// Track currently playing audio for each user to prevent duplicates
 const currentlyPlaying = {};
 
 function heartbeat() {
@@ -25,75 +25,96 @@ function heartbeat() {
 
 wss.on('connection', (ws, request) => {
   const { userId } = request.session;
-
   logger.info(`WebSocket connection attempt for user ${userId} with Session ID: ${request.session.id}`);
 
   if (!userId) {
-    logger.error('WebSocket connection refused due to unauthorized user.');
+    logger.error('WebSocket connection refused due to unauthorized user (no userId).');
     ws.close(4001, 'Unauthorized');
     return;
   }
 
-  ws.userId = userId; // Assign userId to ws object for later reference
+  ws.userId = userId;
   userAutoplayPreferences[userId] = request.session.autoplay || false;
 
-  // Send a single autoplay status message
-  ws.send(JSON.stringify({ 
-    action: 'autoplayStatus', 
-    autoplay: userAutoplayPreferences[userId] 
+  // Immediately send autoplay status
+  ws.send(JSON.stringify({
+    action: 'autoplayStatus',
+    autoplay: userAutoplayPreferences[userId],
   }));
 
-  // Fetch and send the latest transcriptions to the newly connected client
+  // Also send the latest transcriptions if needed
   fetchLatestTranscriptions()
     .then((transcriptions) => {
       ws.send(JSON.stringify({ action: 'latestTranscriptions', data: transcriptions }));
     })
     .catch((err) => {
-      logger.error('Failed to fetch latest transcriptions for WebSocket client:', err.message, err.stack);
+      logger.error(
+        'Failed to fetch latest transcriptions for WebSocket client:',
+        err.message,
+        err.stack
+      );
     });
 
   logger.info(
     `WebSocket connection established for user ${userId}. `
-    + `Session ID: ${request.session.id} `
-    + `Autoplay preference: ${userAutoplayPreferences[userId]}`,
+    + `Session ID: ${request.session.id}, `
+    + `autoplay=${userAutoplayPreferences[userId]}`
   );
 
-  // Heartbeat for ping/pong
+  // Heartbeat
   ws.isAlive = true;
   ws.on('pong', heartbeat);
 
-  // Handle incoming messages from the client
+  // Handle incoming messages
   ws.on('message', (message) => {
-    logger.info(`Received message: ${message} from user ${userId} Session ID: ${request.session.id}`);
+    logger.info(`Received message: ${message} (userId=${userId} session=${request.session.id})`);
     const parsedMessage = JSON.parse(message);
 
+    // If the client updates autoplay status
     if (parsedMessage.action === 'autoplayStatus') {
       userAutoplayPreferences[ws.userId] = parsedMessage.autoplay;
       logger.info(
-        `Autoplay status updated for user ${ws.userId} Session ID: ${request.session.id}. `
-        + `New status: ${parsedMessage.autoplay}`,
+        `Autoplay status updated for user=${ws.userId}, newStatus=${parsedMessage.autoplay}`
       );
     }
 
+    // Client requesting next audio
     if (parsedMessage.action === 'requestNextAudio' && userAutoplayPreferences[ws.userId]) {
-      if (mp3PlaybackQueue.length > 0 && currentlyPlaying[userId] !== mp3PlaybackQueue[0]) {
-        currentlyPlaying[userId] = mp3PlaybackQueue.shift();
-        ws.send(JSON.stringify({ type: 'nextAudio', path: currentlyPlaying[userId] }));
-        logger.info(`Sending next audio path: ${currentlyPlaying[userId]} to user ${userId}.`);
+      if (mp3PlaybackQueue.length > 0) {
+        const nextItem = mp3PlaybackQueue[0]; // { path, talkgroupId }
+        // Make sure not to send the exact same item they are already playing
+        if (currentlyPlaying[userId] !== nextItem.path) {
+          mp3PlaybackQueue.shift(); // remove from queue
+          currentlyPlaying[userId] = nextItem.path;
+
+          // Send talkgroupId along with path
+          ws.send(JSON.stringify({
+            action: 'nextAudio',
+            path: nextItem.path,
+            talkgroupId: nextItem.talkgroupId,
+          }));
+
+          logger.info(
+            `Sending nextAudio to user=${userId}, path=${nextItem.path}, TGID=${nextItem.talkgroupId}`
+          );
+        } else {
+          logger.info(`User ${userId} is already playing ${nextItem.path}, noMoreAudio sent.`);
+          ws.send(JSON.stringify({ action: 'noMoreAudio' }));
+        }
       } else {
-        logger.info(`No audio in queue to send to user ${userId}.`);
-        ws.send(JSON.stringify({ type: 'noMoreAudio' }));
+        logger.info(`No audio in queue for user=${userId}, sending noMoreAudio.`);
+        ws.send(JSON.stringify({ action: 'noMoreAudio' }));
       }
     }
   });
 
-  // Send current autoplay status once again
+  // Send autoplay status once again (optional, can remove if redundant)
   ws.send(JSON.stringify({ action: 'autoplayStatus', autoplay: request.session.autoplay }));
   logger.info('Sent current autoplay status to client.');
 });
 
-// Periodically ping clients to ensure they're still alive
-const interval = setInterval(() => {
+// Periodically ping clients to ensure they're alive
+setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) return ws.terminate();
     ws.isAlive = false;
@@ -101,55 +122,33 @@ const interval = setInterval(() => {
   });
 }, 30000);
 
-/**
- * filterTranscriptions:
- * We define unwanted patterns to exclude certain trivial or noisy lines.
- * - Repetitions of "BANG" or "BANG!" e.g. "BANG BANG!" "BANG! BANG!" etc.
- * - "Thank you" with optional punctuation at end (., !)
- * - Lines made entirely of periods/spaces (like "...", ". . .", etc.)
- */
+// Filter out unwanted patterns, e.g. repeated "BANG" lines, "Thank you", etc.
 function filterTranscriptions(transcriptions) {
-  // Improved unwanted patterns:
   const unwantedPatterns = [
-    // 1) One or more "BANG" or "BANG!" only (case-insensitive),
-    //    possibly separated by spaces. e.g. "BANG BANG", "BANG! BANG!"
-    // We'll allow optional leading/trailing spaces as well.
-    // Explanation:
-    // ^\s*     optional leading spaces
-    // (?:BANG!?)(?:\s+BANG!?)*   at least one BANG or BANG! plus optional repeated
-    // \s*$     optional trailing spaces
     /^ *(?:BANG!?)(?:\s+BANG!?)* *$/i,
     /^ *(?:BOOM!?)(?:\s+BOOM!?)* *$/i,
-
-    // 2) "Thank you" + optional punctuation (. or !) and optional trailing spaces
-    // e.g. "Thank you", "Thank you.", "thank you!!!"
-    // We'll only allow period or exclamation:
     /^ *thank you[.!]* *$/i,
-
-    // 3) Lines of only periods and/or spaces, e.g. ".", "..", ". .", "....", etc.
-    // Possibly with some trailing spaces.
-    // e.g. "..." or "   . . ."
     /^[.\s]+$/,
   ];
 
-  return transcriptions.filter(({ text }) =>
-    // Return true if it does NOT match any unwanted pattern
-    !unwantedPatterns.some((regex) => regex.test(text)));
+  return transcriptions.filter(({ text }) => {
+    return !unwantedPatterns.some((regex) => regex.test(text));
+  });
 }
 
+// Check user subscriptions for keyword matches, sending email if needed
 async function checkSubscriptionMatches(transcription) {
   try {
     const subscriptions = await Subscription.find({});
-    
     for (const subscription of subscriptions) {
       let isMatch = false;
-      
+
       if (subscription.isRegex) {
         try {
           const regex = new RegExp(subscription.pattern);
           isMatch = regex.test(transcription.text);
-        } catch (error) {
-          logger.error(`Invalid regex pattern in subscription ${subscription._id}:`, error);
+        } catch (err) {
+          logger.error(`Invalid regex in subscription=${subscription._id}`, err);
           continue;
         }
       } else {
@@ -163,7 +162,6 @@ async function checkSubscriptionMatches(transcription) {
           text: transcription.text
         };
 
-        // Add to matches if keepHistory is true
         if (subscription.keepHistory) {
           subscription.matches.push(match);
           if (subscription.matches.length > 15) {
@@ -171,7 +169,6 @@ async function checkSubscriptionMatches(transcription) {
           }
         }
 
-        // Send email notification if enabled
         if (subscription.emailNotification && subscription.email) {
           await emailService.sendNotification(subscription.email, match);
         }
@@ -185,43 +182,39 @@ async function checkSubscriptionMatches(transcription) {
   }
 }
 
+// Broadcast a brand-new transcription to all clients (if it isn't too old or filtered out)
 async function broadcastNewTranscription(newTranscription) {
-  // Check for subscription matches first
   await checkSubscriptionMatches(newTranscription);
 
-  // 1) Check if older than 3 hours
+  // Skip if older than 3 hours
   const threeHoursAgo = Date.now() - (3 * 60 * 60 * 1000);
-  const timestampStr = String(newTranscription.timestamp);
-  const localTimestamp = timestampStr.replace(/Z$/, '');
-  const docTime = new Date(`${localTimestamp} GMT-0500`).getTime();
+  const docTime = new Date(String(newTranscription.timestamp).replace(/Z$/, '') + ' GMT-0500').getTime();
   if (docTime < threeHoursAgo) {
-    logger.info(`threeHoursAgo: ${threeHoursAgo}`);
-    logger.info(`docTime: ${docTime}`);
     logger.info(
-      'Skipping broadcast for old transcription (older than 3h). '
-      + `Timestamp: ${newTranscription.timestamp}`,
+      `Skipping broadcast for old transcription (older than 3h). t=${newTranscription.timestamp}`
     );
     return;
   }
 
-  // 2) Filter out unwanted patterns
+  // Filter out "unwanted" single-word lines, "BANG," etc.
   const filtered = filterTranscriptions([newTranscription]);
   if (filtered.length === 0) {
-    logger.info('Filtered out unwanted transcription. No broadcast necessary.');
+    logger.info('Filtered out unwanted transcription, not broadcasting.');
     return;
   }
 
-  // 3) Enrich with group name, talkgroup name
+  // Enrich talkgroup info
   const transcription = filtered[0];
-  const groupName = talkgroupConfig.getGroupName(transcription.talkgroupId);
-  const talkgroupName = talkgroupConfig.getTalkgroupName(transcription.talkgroupId);
+  const groupName = talkgroupConfig.getGroupName(transcription.talkgroupId) || 'Unknown Group';
+  const tgName = talkgroupConfig.getTalkgroupName(transcription.talkgroupId);
+  const talkgroupName = tgName
+    ? `${transcription.talkgroupId} (${tgName})`
+    : `TGID ${transcription.talkgroupId}`;
 
   const enrichedTranscription = {
     ...transcription._doc,
-    groupName: groupName || 'Unknown Group',
-    talkgroupName: talkgroupName
-      ? `${transcription.talkgroupId} (${talkgroupName})`
-      : `TGID ${transcription.talkgroupId}`,
+    groupName,
+    talkgroupName,
   };
 
   const message = JSON.stringify({
@@ -236,22 +229,25 @@ async function broadcastNewTranscription(newTranscription) {
           logger.error(`Error sending new transcription to client ${client.userId}: ${err.message}`, err.stack);
         }
       });
-      logger.info(`Broadcasted new transcription to user ${client.userId}.`);
+      logger.info(`Broadcasted new transcription to user ${client.userId}`);
     }
   });
 }
 
 /**
  * addToMP3Queue:
- * Add the MP3 path to the playback queue, then notify clients with autoplay enabled.
- * Also includes talkgroupId in the 'nextAudio' message, so the client can skip if out-of-group.
+ * Called whenever a new MP3 is uploaded. We store { path, talkgroupId } in `mp3PlaybackQueue`,
+ * then broadcast "nextAudio" to any user who has autoplay turned on.
  */
 function addToMP3Queue(mp3FilePath, talkgroupId) {
-  if (!mp3PlaybackQueue.includes(mp3FilePath)) {
-    mp3PlaybackQueue.push(mp3FilePath);
-    logger.info(`Added MP3 file path ${mp3FilePath} to playback queue.`);
+  // Check if it's already in the queue
+  const alreadyInQueue = mp3PlaybackQueue.some((item) => item.path === mp3FilePath);
+  if (!alreadyInQueue) {
+    // Store both path and talkgroup
+    mp3PlaybackQueue.push({ path: mp3FilePath, talkgroupId });
+    logger.info(`Added path=${mp3FilePath} talkgroupId=${talkgroupId} to the playback queue.`);
 
-    // Now notify all clients with autoplay enabled
+    // Broadcast "nextAudio" to all clients who have autoplay on
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN && userAutoplayPreferences[client.userId]) {
         client.send(
@@ -259,15 +255,13 @@ function addToMP3Queue(mp3FilePath, talkgroupId) {
             action: 'nextAudio',
             path: mp3FilePath,
             talkgroupId,
-          }),
+          })
         );
-        logger.info(
-          `Notified user ${client.userId} about new audio file for autoplay. talkgroupId=${talkgroupId}`,
-        );
+        logger.info(`Notified user=${client.userId} about new audio (TGID=${talkgroupId}).`);
       }
     });
   } else {
-    logger.info(`MP3 file path ${mp3FilePath} is already in playback queue.`);
+    logger.info(`MP3 path=${mp3FilePath} is already in the playback queue; skipping.`);
   }
 }
 
@@ -279,7 +273,7 @@ module.exports = {
 
       sessionParser(request, {}, () => {
         if (!request.session.userId) {
-          logger.warn('WebSocket upgrade refused: user not authenticated.');
+          logger.warn('WebSocket upgrade refused: no user authenticated.');
           socket.destroy();
           return;
         }

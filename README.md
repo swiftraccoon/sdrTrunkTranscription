@@ -39,7 +39,6 @@ Although each component can function independently, they are designed to work to
 6. [Systemd Services](#systemd-services)
 7. [Troubleshooting](#troubleshooting)
 8. [Contributing](#contributing)
-9. [License](#license)
 
 ---
 

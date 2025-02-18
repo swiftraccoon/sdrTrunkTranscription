@@ -1,4 +1,3 @@
-/* global document, window, WebSocket, Audio, localStorage */
 import logger from './clientLogger.js';
 
 class TranscriptionManager {
@@ -11,6 +10,8 @@ class TranscriptionManager {
     this.lastPlayedAudio = '';
     this.maxReconnectionAttempts = 6;
     this.initialized = false;
+
+    // Classes used for theming
     this.themeClasses = [
       'light',
       'dark',
@@ -59,7 +60,7 @@ class TranscriptionManager {
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        logger.debug('WebSocket message received', { type: data.action });
+        logger.debug('WebSocket message received', { action: data.action });
         this.handleWebSocketMessage(data);
       } catch (error) {
         logger.error('Failed to process WebSocket message', error);
@@ -84,6 +85,7 @@ class TranscriptionManager {
       case 'autoplayStatusUpdated':
         this.updateAutoplayStatus(data.autoplay);
         logger.info('Autoplay status updated from server', { newStatus: data.autoplay });
+        // If we have items in the queue and autoplay is enabled, start playing
         if (this.autoplayEnabled && this.audioQueue.length > 0) {
           this.playNextAudio();
         }
@@ -94,20 +96,22 @@ class TranscriptionManager {
           logger.debug('Ignoring nextAudio, autoplay disabled', { autoplayEnabled: this.autoplayEnabled });
           return;
         }
-
         if (!this.shouldPlayAudio(data)) {
           logger.debug('Skipping audio, does not match current filters', {
             talkgroupId: data.talkgroupId,
           });
           return;
         }
-
         logger.info('Received nextAudio message', { path: data.path });
         this.queueAudio(data.path);
         break;
 
       case 'newTranscription':
         this.handleNewTranscription(data.data);
+        break;
+
+      case 'noMoreAudio':
+        logger.info('Server indicates no more audio in the queue');
         break;
 
       default:
@@ -124,37 +128,53 @@ class TranscriptionManager {
     logger.info('Autoplay status updated', { enabled: status });
   }
 
-  handleNextAudio(data) {
-    if (!this.autoplayEnabled) {
-      logger.debug('Ignoring nextAudio, autoplay disabled');
-      return;
-    }
-
-    if (!this.shouldPlayAudio(data)) {
-      logger.debug('Skipping audio, does not match current filters', {
-        talkgroupId: data.talkgroupId,
-      });
-      return;
-    }
-
-    this.queueAudio(data.path);
-  }
-
+  /**
+   * Decide if we should play this talkgroup based on the user's current filter.
+   */
   shouldPlayAudio(data) {
-    if (!data.talkgroupId) return true;
+    // If the server didn't include talkgroupId, do NOT play it
+    if (!data.talkgroupId) return false;
 
     const bodyEl = document.querySelector('body');
     const currentPage = bodyEl?.dataset?.page;
     const selectedGroup = bodyEl?.dataset?.selectedGroup;
 
-    return !(
-      currentPage === 'index' &&
-      selectedGroup !== 'All' &&
-      !this.transcriptionMatchesGroup(data.talkgroupId, selectedGroup)
+    // If user selected "All" or is not on index, there's no special filter
+    if (currentPage !== 'index' || selectedGroup === 'All') {
+      return true;
+    }
+
+    // Otherwise, ensure talkgroup is in the user's chosen group
+    return this.transcriptionMatchesGroup(data.talkgroupId, selectedGroup);
+  }
+
+  transcriptionMatchesGroup(tgId, groupName) {
+    const tgNum = Number(tgId);
+    if (Number.isNaN(tgNum)) return false;
+
+    // The server provides groupMappings in the global window object
+    const segments = window.groupMapping[groupName];
+    if (!segments) return false;
+
+    const ranges = segments.split(',').map(range => {
+      const parts = range.trim().split('-');
+      if (parts.length === 1) {
+        const num = parseInt(parts[0], 10);
+        return { type: 'single', value: num };
+      }
+      const start = parseInt(parts[0], 10);
+      const end = parseInt(parts[1], 10);
+      return { type: 'range', start, end };
+    });
+
+    return ranges.some(range =>
+      (range.type === 'single' && range.value === tgNum) ||
+      (range.type === 'range' && tgNum >= range.start && tgNum <= range.end)
     );
   }
 
   queueAudio(path) {
+    // Avoid duplicates
     if (
       this.currentlyPlaying === path ||
       this.audioQueue.includes(path) ||
@@ -167,6 +187,7 @@ class TranscriptionManager {
     this.audioQueue.push(path);
     logger.info('Audio added to queue', { path, queueLength: this.audioQueue.length });
 
+    // If nothing is currently playing, start
     if (!this.currentlyPlaying) {
       this.playNextAudio();
     }
@@ -190,8 +211,10 @@ class TranscriptionManager {
 
         if (this.autoplayEnabled) {
           if (this.audioQueue.length > 0) {
+            // More items in queue—play next
             this.playNextAudio();
           } else if (this.ws?.readyState === WebSocket.OPEN) {
+            // If queue is empty, request next from the server
             this.ws.send(JSON.stringify({ action: 'requestNextAudio' }));
           }
         }
@@ -212,6 +235,7 @@ class TranscriptionManager {
       return;
     }
 
+    // If user has selected a group, skip transcriptions from other talkgroups
     if (
       currentPage === 'index' &&
       selectedGroup !== 'All' &&
@@ -262,30 +286,6 @@ class TranscriptionManager {
     return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
   }
 
-  transcriptionMatchesGroup(tgId, groupName) {
-    const tgNum = Number(tgId);
-    if (Number.isNaN(tgNum)) return false;
-
-    const segments = window.groupMapping[groupName];
-    if (!segments) return false;
-
-    const ranges = segments.split(',').map(range => {
-      const parts = range.trim().split('-');
-      if (parts.length === 1) {
-        const num = parseInt(parts[0], 10);
-        return { type: 'single', value: num };
-      }
-      const start = parseInt(parts[0], 10);
-      const end = parseInt(parts[1], 10);
-      return { type: 'range', start, end };
-    });
-
-    return ranges.some(range =>
-      (range.type === 'single' && range.value === tgNum) ||
-      (range.type === 'range' && tgNum >= range.start && tgNum <= range.end)
-    );
-  }
-
   setupEventListeners() {
     logger.info('Setting up event listeners');
     this.setupThemeListeners();
@@ -293,53 +293,39 @@ class TranscriptionManager {
     this.setupAutoplayToggle();
   }
 
-  setupThemeListeners() {
-    logger.info('Setting up theme listeners');
+  /************************************************
+   *                THEME METHODS
+   ************************************************/
 
-    const themeDropdown = document.getElementById('themeDropdown');
-    if (themeDropdown) {
-      const dropdownItems = themeDropdown.nextElementSibling.querySelectorAll('.dropdown-item[data-theme]');
-      logger.info(`Found ${dropdownItems.length} theme dropdown items`);
+  /**
+   * Called once on DOMContentLoaded. We read the URL hash or localStorage
+   * to figure out which theme to apply on page load.
+   */
+  applyStoredTheme() {
+    try {
+      logger.info('Applying stored theme');
 
-      dropdownItems.forEach(item => {
-        item.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-
-          const theme = item.getAttribute('data-theme');
-          logger.info('Theme dropdown item clicked', { theme });
-          if (theme) {
-            this.applyTheme(theme);
-          }
-        });
-      });
-    } else {
-      logger.warn('Theme dropdown not found');
-    }
-
-    const themeButtons = document.querySelectorAll('[data-theme]:not(.dropdown-item)');
-    logger.info(`Found ${themeButtons.length} direct theme buttons`);
-
-    themeButtons.forEach(button => {
-      button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const theme = button.getAttribute('data-theme');
-        logger.info('Theme button clicked', { theme });
-        if (theme) {
-          this.applyTheme(theme);
-        }
-      });
-    });
-
-    window.addEventListener('hashchange', () => {
+      // If there's a theme in the URL hash, use that first
       const themeFromHash = window.location.hash.slice(1);
-      logger.info('URL hash changed', { themeFromHash });
       if (themeFromHash && this.themeClasses.includes(themeFromHash)) {
+        logger.info('Using theme from URL hash', { theme: themeFromHash });
         this.applyTheme(themeFromHash);
+        return;
       }
-    });
+
+      // Otherwise, read localStorage
+      const theme = localStorage.getItem('theme');
+      if (theme && this.themeClasses.includes(theme)) {
+        logger.info('Using theme from localStorage', { theme });
+        this.applyTheme(theme);
+      } else {
+        logger.info('No stored theme found, using default "light"');
+        this.applyTheme('light');
+      }
+    } catch (error) {
+      logger.error('Failed to restore theme from storage', error);
+      this.applyTheme('light');
+    }
   }
 
   applyTheme(theme) {
@@ -354,6 +340,7 @@ class TranscriptionManager {
       document.body.classList.add(theme);
       localStorage.setItem('theme', theme);
 
+      // Mark the correct dropdown item active
       const dropdownItems = document.querySelectorAll('.dropdown-item[data-theme]');
       dropdownItems.forEach(item => {
         const itemTheme = item.getAttribute('data-theme');
@@ -368,52 +355,86 @@ class TranscriptionManager {
         }
       });
 
+      // Mark the correct inline theme button active
       const themeButtons = document.querySelectorAll('[data-theme]:not(.dropdown-item)');
       themeButtons.forEach(button => {
         const buttonTheme = button.getAttribute('data-theme');
         button.classList.toggle('active', buttonTheme === theme);
       });
 
+      // Update the URL hash
       const newUrl = window.location.href.split('#')[0] + '#' + theme;
       window.history.replaceState(null, '', newUrl);
 
+      // Dispatch an event so other scripts can react to theme changes
       window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
 
       logger.info('Theme applied successfully', {
         theme,
-        newClasses: document.body.className,
-        activeDropdownItems: document.querySelectorAll('.dropdown-item[data-theme].active').length,
-        activeButtons: document.querySelectorAll('[data-theme]:not(.dropdown-item).active').length
+        newClasses: document.body.className
       });
     } catch (error) {
       logger.error('Failed to apply theme', error, { theme });
     }
   }
 
-  applyStoredTheme() {
-    try {
-      logger.info('Applying stored theme');
+  setupThemeListeners() {
+    logger.info('Setting up theme listeners');
 
-      const themeFromHash = window.location.hash.slice(1);
-      if (themeFromHash && this.themeClasses.includes(themeFromHash)) {
-        logger.info('Using theme from URL hash', { theme: themeFromHash });
-        this.applyTheme(themeFromHash);
-        return;
-      }
+    const themeDropdown = document.getElementById('themeDropdown');
+    if (themeDropdown) {
+      // .dropdown-toggle is the button; the actual items are in the sibling .dropdown-menu
+      const dropdownMenu = themeDropdown.nextElementSibling;
+      if (dropdownMenu) {
+        const dropdownItems = dropdownMenu.querySelectorAll('.dropdown-item[data-theme]');
+        logger.info(`Found ${dropdownItems.length} theme dropdown items`);
 
-      const theme = localStorage.getItem('theme');
-      if (theme && this.themeClasses.includes(theme)) {
-        logger.info('Using theme from localStorage', { theme });
-        this.applyTheme(theme);
-      } else {
-        logger.info('No stored theme found, using default light theme');
-        this.applyTheme('light');
+        dropdownItems.forEach(item => {
+          item.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const theme = item.getAttribute('data-theme');
+            logger.info('Theme dropdown item clicked', { theme });
+            if (theme) {
+              this.applyTheme(theme);
+            }
+          });
+        });
       }
-    } catch (error) {
-      logger.error('Failed to restore theme from storage', error);
-      this.applyTheme('light');
+    } else {
+      logger.warn('Theme dropdown not found');
     }
+
+    // Also handle any direct theme buttons in the UI
+    const themeButtons = document.querySelectorAll('[data-theme]:not(.dropdown-item)');
+    logger.info(`Found ${themeButtons.length} direct theme buttons`);
+    themeButtons.forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const theme = button.getAttribute('data-theme');
+        logger.info('Theme button clicked', { theme });
+        if (theme) {
+          this.applyTheme(theme);
+        }
+      });
+    });
+
+    // If user manually changes the URL hash, apply that theme
+    window.addEventListener('hashchange', () => {
+      const themeFromHash = window.location.hash.slice(1);
+      logger.info('URL hash changed', { themeFromHash });
+      if (themeFromHash && this.themeClasses.includes(themeFromHash)) {
+        this.applyTheme(themeFromHash);
+      }
+    });
   }
+
+  /************************************************
+   *          TRANSCRIPTION CLICK HANDLING
+   ************************************************/
 
   setupTranscriptionListeners() {
     const transcriptionsEl = document.getElementById('transcriptions');
@@ -436,6 +457,10 @@ class TranscriptionManager {
     }
   }
 
+  /************************************************
+   *             AUTOPLAY TOGGLE
+   ************************************************/
+
   setupAutoplayToggle() {
     const toggleEl = document.getElementById('autoplayToggle');
     if (toggleEl) {
@@ -449,12 +474,16 @@ class TranscriptionManager {
   sendAutoplayStatus() {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        action: 'setAutoplayStatus',
+        action: 'autoplayStatus',
         autoplay: this.autoplayEnabled,
       }));
       logger.info('Sent autoplay status', { enabled: this.autoplayEnabled });
     }
   }
+
+  /************************************************
+   *            WEBSOCKET RECONNECT
+   ************************************************/
 
   attemptReconnect() {
     if (this.reconnectionAttempts >= this.maxReconnectionAttempts) {
@@ -477,10 +506,12 @@ class TranscriptionManager {
   }
 }
 
+// Create and initialize the global manager
 let manager;
 document.addEventListener('DOMContentLoaded', () => {
   logger.info('DOM loaded, initializing TranscriptionManager');
   manager = new TranscriptionManager();
   manager.init();
+  // Expose it if needed for debugging
   window.manager = manager;
 });
