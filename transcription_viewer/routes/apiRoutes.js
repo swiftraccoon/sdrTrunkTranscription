@@ -74,7 +74,7 @@ router.post(
         return res.status(409).send('Duplicate transcription');
       }
 
-      // Create document
+      // Attempt to create doc
       let newTranscription;
       try {
         newTranscription = await Transcription.create({
@@ -97,7 +97,7 @@ router.post(
 
       // Invalidate cache for all groups
       const groupList = talkgroupConfig.getAllGroups();
-      const limit = 30;
+      const limit = 30; // The same limit for all
 
       for (const group of groupList) {
         const cacheKey = `recent_transcriptions_${limit}_${group}`;
@@ -109,41 +109,77 @@ router.post(
         }
       }
 
-      // Also invalidate the general 'recent_transcriptions' key (if used)
+      // Also invalidate the general 'recent_transcriptions' key
       cacheService.invalidateCache('recent_transcriptions');
 
       // ------------------------------------------------------
-      // Rebuild each group's cache. We do the same logic as in indexRoutes:
-      //   if group === 'All', we .find({}).
-      //   else we find docs whose talkgroupId is in that group's ID array.
+      // Rebuild the group-based cache, *but also ENRICH* each doc
+      //    to ensure talkgroupName shows on page load.
       // ------------------------------------------------------
       for (const group of groupList) {
         let query = {};
 
+        // If group === 'All', we fetch all transcriptions
+        // otherwise we fetch transcriptions whose talkgroupId is in group
         if (group !== 'All') {
-          // talkgroupConfig.getGroupIds(group) must return an array
-          // of talkgroupIds that belong to this group
           const groupIds = talkgroupConfig.getGroupIds(group);
           query = { talkgroupId: { $in: groupIds } };
         }
-        // If group === 'All', query remains {}
 
-        const groupTranscriptions = await Transcription.find(query)
+        // Fetch raw
+        let groupTranscriptions = await Transcription.find(query)
           .sort({ timestamp: -1 })
           .limit(limit);
 
+        // If you have a "filterTranscriptions" method, call it:
+        if (typeof Transcription.filterTranscriptions === 'function') {
+          groupTranscriptions = Transcription.filterTranscriptions(groupTranscriptions);
+        }
+
+        // "Enrich" the talkgroupName, groupName
+        groupTranscriptions = groupTranscriptions.map((t) => {
+          const doc = t._doc ? t._doc : t; // handle if it's a plain object
+          const grpName = talkgroupConfig.getGroupName(doc.talkgroupId);
+          const tgName = talkgroupConfig.getTalkgroupName(doc.talkgroupId);
+
+          return {
+            ...doc,
+            groupName: grpName || 'Unknown Group',
+            talkgroupName: tgName
+              ? `${doc.talkgroupId} (${tgName})`
+              : `TGID ${doc.talkgroupId}`,
+          };
+        });
+
+        // Now we store the enriched docs in cache
         cacheService.saveToCache(`recent_transcriptions_${limit}_${group}`, groupTranscriptions);
       }
 
-      // Optionally, rebuild your global "recent_transcriptions" cache
-      // with the top 30 sitewide
-      const recentTranscriptions = await Transcription.find({})
+      // Rebuild the 'recent_transcriptions' cache (the global cache)
+      let recentTranscriptions = await Transcription.find({})
         .sort({ timestamp: -1 })
         .limit(limit);
 
-      cacheService.saveToCache('recent_transcriptions', recentTranscriptions);
+      if (typeof Transcription.filterTranscriptions === 'function') {
+        recentTranscriptions = Transcription.filterTranscriptions(recentTranscriptions);
+      }
 
-      console.log('Cache updated with the most recent transcriptions (including "All").');
+      recentTranscriptions = recentTranscriptions.map((t) => {
+        const doc = t._doc ? t._doc : t;
+        const grpName = talkgroupConfig.getGroupName(doc.talkgroupId);
+        const tgName = talkgroupConfig.getTalkgroupName(doc.talkgroupId);
+
+        return {
+          ...doc,
+          groupName: grpName || 'Unknown Group',
+          talkgroupName: tgName
+            ? `${doc.talkgroupId} (${tgName})`
+            : `TGID ${doc.talkgroupId}`,
+        };
+      });
+
+      cacheService.saveToCache('recent_transcriptions', recentTranscriptions);
+      console.log('Cache updated with the most recent transcriptions (fully enriched).');
 
       // Notify connected clients about the new doc
       broadcastNewTranscription(newTranscription);
