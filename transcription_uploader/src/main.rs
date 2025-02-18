@@ -246,10 +246,10 @@ async fn process_and_upload(path: &PathBuf) {
                 .part("mp3", mp3_part)
                 .part("transcription", txt_part);
 
-            // Perform the upload using values from our global Lazy statics
+            // Note the changes here: use `API_URL.as_str()` and `API_KEY.as_str()`
             match CLIENT
-                .post(&API_URL)
-                .header("X-API-Key", &API_KEY)
+                .post(API_URL.as_str())
+                .header("X-API-Key", API_KEY.as_str())
                 .multipart(form)
                 .send()
                 .await

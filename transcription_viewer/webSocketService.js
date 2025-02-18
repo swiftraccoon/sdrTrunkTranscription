@@ -37,8 +37,11 @@ wss.on('connection', (ws, request) => {
   ws.userId = userId; // Assign userId to ws object for later reference
   userAutoplayPreferences[userId] = request.session.autoplay || false;
 
-  // Immediately tell the client their autoplay status
-  ws.send(JSON.stringify({ action: 'autoplayStatus', autoplay: userAutoplayPreferences[userId] }));
+  // Send a single autoplay status message
+  ws.send(JSON.stringify({ 
+    action: 'autoplayStatus', 
+    autoplay: userAutoplayPreferences[userId] 
+  }));
 
   // Fetch and send the latest transcriptions to the newly connected client
   fetchLatestTranscriptions()

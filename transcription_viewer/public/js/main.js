@@ -83,10 +83,27 @@ class TranscriptionManager {
       case 'autoplayStatus':
       case 'autoplayStatusUpdated':
         this.updateAutoplayStatus(data.autoplay);
+        logger.info('Autoplay status updated from server', { newStatus: data.autoplay });
+        if (this.autoplayEnabled && this.audioQueue.length > 0) {
+          this.playNextAudio();
+        }
         break;
 
       case 'nextAudio':
-        this.handleNextAudio(data);
+        if (!this.autoplayEnabled) {
+          logger.debug('Ignoring nextAudio, autoplay disabled', { autoplayEnabled: this.autoplayEnabled });
+          return;
+        }
+
+        if (!this.shouldPlayAudio(data)) {
+          logger.debug('Skipping audio, does not match current filters', {
+            talkgroupId: data.talkgroupId,
+          });
+          return;
+        }
+
+        logger.info('Received nextAudio message', { path: data.path });
+        this.queueAudio(data.path);
         break;
 
       case 'newTranscription':

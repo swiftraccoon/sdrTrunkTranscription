@@ -142,22 +142,30 @@ router.post(
 
 // Updated endpoint for toggling autoplay
 router.post('/api/toggle-autoplay', (req, res) => {
-  if (req.session) {
-    const newAutoplayValue = req.body.autoplay === true;
-    req.session.autoplay = newAutoplayValue;
-    console.log(`Autoplay preference updated to ${newAutoplayValue} for user ${req.session.userId}`);
-
-    // Notify the client about the updated preference with the correct boolean value
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN && client.userId === req.session.userId) {
-        client.send(JSON.stringify({ action: 'autoplayStatusUpdated', autoplay: newAutoplayValue }));
-      }
-    });
-    res.json({ message: 'Autoplay preference updated successfully.', autoplay: newAutoplayValue });
-  } else {
-    console.error('Error updating autoplay preference: session not found.');
-    res.status(500).send('Error updating autoplay preference.');
+  if (!req.session || !req.session.userId) {
+    console.error('Error updating autoplay preference: session or userId not found.');
+    return res.status(401).send('Unauthorized');
   }
+
+  const newAutoplayValue = req.body.autoplay === true;
+  req.session.autoplay = newAutoplayValue;
+  console.log(`Autoplay preference updated to ${newAutoplayValue} for user ${req.session.userId}`);
+
+  // Update the WebSocket service's state
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN && client.userId === req.session.userId) {
+      client.send(JSON.stringify({ 
+        action: 'autoplayStatus', 
+        autoplay: newAutoplayValue 
+      }));
+    }
+  });
+
+  res.json({ 
+    success: true,
+    message: 'Autoplay preference updated successfully.', 
+    autoplay: newAutoplayValue 
+  });
 });
 
 module.exports = router;

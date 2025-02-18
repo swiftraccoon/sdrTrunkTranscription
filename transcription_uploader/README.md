@@ -77,7 +77,7 @@ The application reads **three required** environment variables (plus any others 
 
 ```bash
 MONITORED_DIRECTORY="/path/to/recordings"
-API_URL="https://my.api.endpoint.com/upload"
+API_URL="https://my.api.endpoint.com/api/upload"
 API_KEY="mysecretapikey"
 ```
 
@@ -151,7 +151,7 @@ To have the application run automatically on system startup (especially on Linux
    EnvironmentFile=/etc/transcription_uploader.env
    # Alternatively, define environment variables directly:
    # Environment="MONITORED_DIRECTORY=/path/to/recordings"
-   # Environment="API_URL=https://my.api.endpoint.com/upload"
+   # Environment="API_URL=https://my.api.endpoint.com/api/upload"
    # Environment="API_KEY=mysecretapikey"
 
    # Restart on failure
@@ -172,7 +172,7 @@ To have the application run automatically on system startup (especially on Linux
    - If you want to keep environment variables in a file, create `/etc/transcription_uploader.env`:
      ```bash
      MONITORED_DIRECTORY="/path/to/recordings"
-     API_URL="https://my.api.endpoint.com/upload"
+     API_URL="https://my.api.endpoint.com/api/upload"
      API_KEY="mysecretapikey"
      ```
    - Make sure the file is readable by systemd (e.g., `chmod 644 /etc/transcription_uploader.env`).
