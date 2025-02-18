@@ -32,7 +32,7 @@ static CLIENT: Lazy<Arc<Client>> = Lazy::new(|| {
 
 /// A small struct holding data that identifies a "processed" transcription file.
 /// We'll use the `.txt` file's path stem, size, and last-modified time.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct ProcessedFile {
     stem: String,
     size: u64,
@@ -43,6 +43,13 @@ struct ProcessedFile {
 /// We store `(stem, size, modified)` and skip if the exact same file shows up again.
 static PROCESSED_FILES: Lazy<Mutex<VecDeque<ProcessedFile>>> = Lazy::new(|| {
     Mutex::new(VecDeque::new()) // Start empty
+});
+
+/// NEW: A global set to track files for which an upload is currently in progress.
+/// This helps avoid a race condition where multiple events fire before we get a
+/// chance to mark the file as processed.
+static UPLOADS_IN_PROGRESS: Lazy<Mutex<HashSet<ProcessedFile>>> = Lazy::new(|| {
+    Mutex::new(HashSet::new())
 });
 
 /// Lazily initialized, environment-based API URL.
@@ -83,6 +90,8 @@ fn main() -> NotifyResult<()> {
                 let now = Instant::now();
                 last_update.insert(path.clone(), now);
 
+                // If we haven't already spawned a "wait and check" task for this path,
+                // mark it as in-flight and spawn one.
                 if !in_flight.contains(&path) {
                     in_flight.insert(path.clone());
 
@@ -125,6 +134,7 @@ fn main() -> NotifyResult<()> {
         while let Ok(event_res) = raw_rx.recv() {
             match event_res {
                 Ok(event) => {
+                    // We only care about Create/Modify for potential new or updated files
                     if let EventKind::Create(_) | EventKind::Modify(_) = event.kind {
                         for path in event.paths {
                             let _ = debounce_tx.send(path);
@@ -162,12 +172,13 @@ fn should_process_file(file_path: &PathBuf, root_path: &PathBuf) -> bool {
 }
 
 /// Reads the .mp3 and .txt pair, checks if .txt has content, parses metadata, uploads via `CLIENT`,
-/// but first checks if we've recently processed an identical .txt file (size + mod time).
+/// but first checks if we've recently processed (or are currently uploading) an identical file.
 async fn process_and_upload(path: &PathBuf) {
     println!("Stable file -> attempting to upload: {:?}", path);
 
+    // Attempt to find matching .mp3 and .txt
     if let Some((mp3_path, txt_path)) = extract_file_info(path) {
-        // -- Gather .txt metadata to see if we've processed this file already.
+        // Gather .txt metadata to see if it's non-empty and to build our "signature"
         let txt_metadata = match fs::metadata(&txt_path) {
             Ok(m) => m,
             Err(e) => {
@@ -191,26 +202,51 @@ async fn process_and_upload(path: &PathBuf) {
             }
         };
 
-        // -- Check if we already processed this exact file signature
-        if has_already_been_processed(&stem, txt_size, txt_modified) {
-            println!("Already uploaded this exact transcription, skipping: {}", stem);
+        // Build a struct that identifies this .txt exactly
+        let signature = ProcessedFile {
+            stem: stem.clone(),
+            size: txt_size,
+            modified: txt_modified,
+        };
+
+        // Check if we've already uploaded this exact file in the past
+        if has_already_been_processed(&signature) {
+            println!("Already uploaded this exact transcription, skipping: {}", signature.stem);
             return;
         }
 
-        // 1) Read the .txt bytes
+        // NEW: Prevent simultaneous uploads of the same file by checking UPLOADS_IN_PROGRESS
+        // If it is "in progress," skip.
+        {
+            let mut in_progress = UPLOADS_IN_PROGRESS.lock().unwrap();
+            if in_progress.contains(&signature) {
+                println!(
+                    "Upload is already in progress for '{}', skipping duplicate in-flight upload.",
+                    signature.stem
+                );
+                return;
+            }
+            // If not in progress, mark it so that any other near-simultaneous event will skip
+            in_progress.insert(signature.clone());
+        }
+
+        // 1) Read the .txt
         let txt_bytes = match fs::read(&txt_path) {
             Ok(bytes) => bytes,
             Err(e) => {
                 eprintln!("Failed reading .txt file: {}", e);
+                // IMPORTANT: If reading the file fails, we remove the "in progress" entry
+                clear_in_progress(&signature);
                 return;
             }
         };
 
-        // 2) Read + parse mp3
+        // 2) Parse the MP3
         let filename = match mp3_path.file_name().and_then(|s| s.to_str()) {
             Some(s) => s,
             None => {
                 println!("Invalid mp3 filename, skipping upload.");
+                clear_in_progress(&signature);
                 return;
             }
         };
@@ -220,6 +256,7 @@ async fn process_and_upload(path: &PathBuf) {
                 Ok(bytes) => bytes,
                 Err(e) => {
                     eprintln!("Failed reading .mp3 file: {}", e);
+                    clear_in_progress(&signature);
                     return;
                 }
             };
@@ -246,7 +283,7 @@ async fn process_and_upload(path: &PathBuf) {
                 .part("mp3", mp3_part)
                 .part("transcription", txt_part);
 
-            // Note the changes here: use `API_URL.as_str()` and `API_KEY.as_str()`
+            // Perform the upload
             match CLIENT
                 .post(API_URL.as_str())
                 .header("X-API-Key", API_KEY.as_str())
@@ -255,31 +292,51 @@ async fn process_and_upload(path: &PathBuf) {
                 .await
             {
                 Ok(res) => {
-                    println!("Upload successful: {:?}", res);
-                    // Mark file as processed
-                    mark_as_processed(stem, txt_size, txt_modified);
+                    println!("Upload response: {:?}", res);
+
+                    // If status is success (2xx) or 409 Conflict, we will mark it as processed
+                    // so we never attempt to upload this exact file again.
+                    if res.status().is_success() || res.status() == reqwest::StatusCode::CONFLICT {
+                        println!("Marking file as processed to prevent duplicate uploads.");
+                        mark_as_processed(signature.clone());
+                    } else {
+                        eprintln!("Unexpected server status: {}", res.status());
+                    }
                 }
-                Err(e) => eprintln!("Upload failed: {}", e),
+                Err(e) => {
+                    eprintln!("Upload failed: {}", e);
+                }
             }
+
+            // Finally, whether success or failure, we remove from "in progress" so future tries can re-attempt if needed.
+            clear_in_progress(&signature);
+        } else {
+            // If the filename doesn't parse, remove from "in progress"
+            clear_in_progress(&signature);
         }
     }
 }
 
-/// A helper to check if we've already processed a file with the given signature (stem, size, mod_time).
-fn has_already_been_processed(stem: &str, size: u64, modified: SystemTime) -> bool {
+/// Checks if a file with this signature (stem, size, modified) has already been processed.
+fn has_already_been_processed(signature: &ProcessedFile) -> bool {
     let processed_files = PROCESSED_FILES.lock().unwrap();
-    processed_files.iter().any(|pf| {
-        pf.stem == stem && pf.size == size && pf.modified == modified
-    })
+    processed_files.contains(signature)
 }
 
-/// Adds a new record to the queue and ensures we only keep the last 25.
-fn mark_as_processed(stem: String, size: u64, modified: SystemTime) {
+/// Marks a file as processed by adding it to the ring buffer, which keeps up to 25 entries.
+fn mark_as_processed(signature: ProcessedFile) {
     let mut processed_files = PROCESSED_FILES.lock().unwrap();
-    processed_files.push_back(ProcessedFile { stem, size, modified });
+    processed_files.push_back(signature);
     while processed_files.len() > 25 {
         processed_files.pop_front();
     }
+}
+
+/// Removes the signature from the set of in-progress uploads, ensuring
+/// that we can re-attempt if the original upload fails for unexpected reasons.
+fn clear_in_progress(signature: &ProcessedFile) {
+    let mut in_progress = UPLOADS_IN_PROGRESS.lock().unwrap();
+    in_progress.remove(signature);
 }
 
 /// Given a file path like `.../20241223_204051North_Carolina_VIPER_Cleveland_T-BennsKControl__TO_P52189_[52193]_FROM_2151975.mp3`,

@@ -60,9 +60,10 @@ router.post(
 
       const transcriptionPath = transcription[0].path;
       const mp3Path = mp3[0].path;
+      // Example: "/uploads/9999/somefile.mp3"
       const webAccessiblePath = `/uploads/${talkgroupId}/${path.basename(mp3Path)}`;
 
-      // Optional quick check to prevent duplicates before hitting the unique index
+      // Optional quick check to prevent duplicates
       const existingTranscription = await Transcription.findOne({
         timestamp: new Date(formattedTimestamp),
         talkgroupId,
@@ -73,11 +74,11 @@ router.post(
         return res.status(409).send('Duplicate transcription');
       }
 
-      // Attempt to create. If unique index sees a dupe, it throws E11000
+      // Attempt to create doc
       let newTranscription;
       try {
         newTranscription = await Transcription.create({
-          text: fs.readFileSync(transcriptionPath, 'utf-8'),
+          text: fs.readFileSync(transcriptionPath, 'utf-8'), // synchronous read
           mp3FilePath: webAccessiblePath,
           timestamp: new Date(formattedTimestamp),
           talkgroupId,
@@ -94,9 +95,9 @@ router.post(
 
       console.log(`New transcription saved: ${newTranscription._id}`);
 
-      // Invalidate cache for all groups
+      // Invalidate cache for all groups (if you intend to store group-based caches)
       const groupList = talkgroupConfig.getAllGroups();
-      const limit = 30; // Same limit for all users now
+      const limit = 30; // The same limit for all
 
       for (const group of groupList) {
         const cacheKey = `recent_transcriptions_${limit}_${group}`;
@@ -111,10 +112,23 @@ router.post(
       // Also invalidate the general 'recent_transcriptions' key
       cacheService.invalidateCache('recent_transcriptions');
 
-      // Rebuild the 'recent_transcriptions' cache
+      // ------------------------------------------------------
+      // Rebuild the group-based cache (ONLY if you need it)
+      // For each group, fetch the latest 30 transcriptions
+      //    that belong to that group, then store in cache.
+      // ------------------------------------------------------
+      for (const group of groupList) {
+        const groupTranscriptions = await Transcription.find({ talkgroupId: group })
+          .sort({ timestamp: -1 })
+          .limit(limit);
+
+        cacheService.saveToCache(`recent_transcriptions_${limit}_${group}`, groupTranscriptions);
+      }
+
+      // Rebuild the 'recent_transcriptions' cache (the global cache)
       const recentTranscriptions = await Transcription.find({})
         .sort({ timestamp: -1 })
-        .limit(30)
+        .limit(limit)
         .catch((error) => {
           console.error('Error fetching recent transcriptions for cache update:', error);
           throw error;
@@ -154,17 +168,17 @@ router.post('/api/toggle-autoplay', (req, res) => {
   // Update the WebSocket service's state
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN && client.userId === req.session.userId) {
-      client.send(JSON.stringify({ 
-        action: 'autoplayStatus', 
-        autoplay: newAutoplayValue 
+      client.send(JSON.stringify({
+        action: 'autoplayStatus',
+        autoplay: newAutoplayValue,
       }));
     }
   });
 
-  res.json({ 
+  res.json({
     success: true,
-    message: 'Autoplay preference updated successfully.', 
-    autoplay: newAutoplayValue 
+    message: 'Autoplay preference updated successfully.',
+    autoplay: newAutoplayValue,
   });
 });
 

@@ -1,4 +1,5 @@
 const NodeCache = require('node-cache');
+
 // Set up the cache with a standard TTL (time to live) of 1 minute (in seconds)
 const cache = new NodeCache({ stdTTL: 60 });
 
@@ -18,6 +19,7 @@ module.exports = {
       return undefined;
     }
   },
+
   // Function to save data to cache
   saveToCache(key, value) {
     try {
@@ -33,17 +35,20 @@ module.exports = {
       return false;
     }
   },
+
   // Function to invalidate cache key
   invalidateCache(key) {
     try {
-      const success = cache.del(key);
+      const success = cache.del(key); // returns number of keys removed
       if (success) {
         console.log(`Cache invalidated for key: ${key}`);
       } else {
         console.log(`Failed to invalidate cache for key: ${key}. Key might not exist.`);
       }
+      return success; // Ensure we return this value so the caller can detect success/failure
     } catch (error) {
       console.error(`Error invalidating cache for key: ${key}`, error.stack);
+      return 0;
     }
   },
 };
