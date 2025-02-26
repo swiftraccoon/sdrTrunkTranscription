@@ -8,6 +8,9 @@ const flash = require('express-flash');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
+const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/authRoutes');
 const apiRoutes = require('./routes/apiRoutes');
 const indexRoutes = require('./routes/indexRoutes');
@@ -20,32 +23,157 @@ const webSocketService = require('./webSocketService');
 const talkgroupConfig = require('./utils/talkgroupConfig');
 const logger = require('./utils/logger');
 
-if (!process.env.DATABASE_URL || !process.env.SESSION_SECRET) {
-  logger.error('Configuration error: required environment variables not set', {
-    missing: [
-      !process.env.DATABASE_URL && 'DATABASE_URL',
-      !process.env.SESSION_SECRET && 'SESSION_SECRET',
-    ].filter(Boolean),
-  });
-  process.exit(-1);
+/**
+ * Environment variable validation
+ * Validates all required environment variables are set before starting the server
+ */
+const requiredEnvVars = {
+  DATABASE_URL: process.env.DATABASE_URL,
+  SESSION_SECRET: process.env.SESSION_SECRET,
+};
+
+// Add SSL-related env vars to required list if HTTPS is enabled
+if (process.env.HTTPS_ENABLE === 'true') {
+  requiredEnvVars.SSL_KEY_PATH = process.env.SSL_KEY_PATH;
+  requiredEnvVars.SSL_CERT_PATH = process.env.SSL_CERT_PATH;
+  requiredEnvVars.WEBSITE_URL = process.env.WEBSITE_URL;
 }
 
-const app = express();
-const port = process.env.PORT || 3000;
-const httpsEnable = process.env.HTTPS_ENABLE === 'true';
+const missingEnvVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
 
-// Middleware setup
+if (missingEnvVars.length > 0) {
+  logger.error('Configuration error: required environment variables not set', {
+    missing: missingEnvVars,
+  });
+  process.exit(1);
+}
+
+// Configuration constants
+const CONFIG = {
+  PORT: process.env.PORT || 3000,
+  HTTPS_ENABLED: process.env.HTTPS_ENABLE === 'true',
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  COOKIE_MAX_AGE: parseInt(process.env.COOKIE_MAX_AGE || 24 * 60 * 60 * 1000), // Default: 24 hours
+  SESSION_TTL: parseInt(process.env.SESSION_TTL || 24 * 60 * 60), // Default: 24 hours
+  RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000), // Default: 15 minutes
+  RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX || 100), // Default: 100 requests per window
+  VERBOSE_LOGGING: process.env.VERBOSE_LOGGING === 'true',
+};
+
+const app = express();
+
+/**
+ * Graceful shutdown function
+ * Closes server and database connections properly
+ */
+const gracefulShutdown = (server, reason) => {
+  logger.info(`Initiating graceful shutdown: ${reason}`);
+  
+  server.close(() => {
+    logger.info('HTTP server closed');
+    
+    mongoose.connection.close(false)
+      .then(() => {
+        logger.info('Database connection closed');
+        process.exit(0);
+      })
+      .catch((err) => {
+        logger.error('Error during database disconnection', {
+          error: err.message,
+          stack: err.stack,
+        });
+        process.exit(1);
+      });
+  });
+  
+  // Force close if graceful shutdown fails
+  setTimeout(() => {
+    logger.error('Forced shutdown: could not close connections in time');
+    process.exit(1);
+  }, 30000);
+};
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "unpkg.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "fonts.googleapis.com", "unpkg.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'", "fonts.gstatic.com", "data:"],
+      connectSrc: ["'self'", "ws:", "wss:"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  // Other security headers remain with default settings
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: CONFIG.RATE_LIMIT_WINDOW_MS,
+  max: CONFIG.RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again later',
+});
+app.use(limiter);
+
+// Performance middleware
+app.use(compression());
+
+// Body parsers
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.set('view engine', 'ejs');
-app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
 
-// Database connection
+// View engine setup
+app.set('view engine', 'ejs');
+
+// Static file serving with cache headers
+const staticOptions = {
+  maxAge: CONFIG.NODE_ENV === 'production' ? '1d' : 0,
+  etag: true,
+};
+app.use(express.static('public', staticOptions));
+app.use('/uploads', express.static('uploads', staticOptions));
+
+/**
+ * Database connection
+ * Connects to MongoDB with optimized settings
+ */
 mongoose
-  .connect(process.env.DATABASE_URL)
+  .connect(process.env.DATABASE_URL, {
+    // Connection pool size optimization
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    // Connection timeout settings
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+  })
   .then(() => {
     logger.info('Database connection established successfully');
+    
+    // Initialize talkgroup config after DB connection
+    try {
+      talkgroupConfig.init()
+        .then(() => {
+          logger.info('Talkgroup configuration initialized successfully');
+        })
+        .catch((err) => {
+          logger.error('Failed to initialize talkgroup configuration', {
+            error: err.message,
+            stack: err.stack,
+          });
+        });
+    } catch (err) {
+      logger.error('Error during talkgroup initialization', {
+        error: err.message,
+        stack: err.stack,
+      });
+    }
   })
   .catch((err) => {
     logger.error('Database connection failed', {
@@ -55,25 +183,25 @@ mongoose
     process.exit(1);
   });
 
-// Initialize talkgroup config after DB connection
-(async () => {
-  await talkgroupConfig.init();
-})();
-
-// Session configuration
+/**
+ * Session configuration
+ * Sets up secure session handling with MongoDB store
+ */
 const sessionParser = session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   rolling: true,
   cookie: {
-    secure: httpsEnable,
+    secure: CONFIG.HTTPS_ENABLED,
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: CONFIG.COOKIE_MAX_AGE,
+    sameSite: 'lax', // Prevents CSRF attacks
   },
   store: MongoStore.create({
     mongoUrl: process.env.DATABASE_URL,
-    ttl: 24 * 60 * 60,
+    ttl: CONFIG.SESSION_TTL,
+    touchAfter: 24 * 3600, // Only update session if data changed
   }),
 });
 
@@ -92,7 +220,7 @@ app.use((req, res, next) => {
 });
 
 // Request logging in verbose mode
-if (process.env.VERBOSE_LOGGING === 'true') {
+if (CONFIG.VERBOSE_LOGGING) {
   app.use((req, res, next) => {
     logger.debug('Incoming request', {
       method: req.method,
@@ -103,6 +231,18 @@ if (process.env.VERBOSE_LOGGING === 'true') {
   });
 }
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  
+  res.status(dbStatus === 'connected' ? 200 : 503).json({
+    status: dbStatus === 'connected' ? 'ok' : 'error',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    dbStatus,
+  });
+});
+
 // Error event handler
 app.on('error', (error) => {
   logger.error('Server error event', {
@@ -111,19 +251,14 @@ app.on('error', (error) => {
   });
 });
 
-// Routes
-app.use('/', authRoutes);
-app.use('/', apiRoutes);
+// Routes with better organization
+app.use('/auth', authRoutes);
+app.use('/api', apiRoutes);
 app.use('/', indexRoutes);
-app.use('/', searchRoutes);
-app.use('/', aiRoutes);
-app.use('/', adminRoutes);
-app.use('/', subscriptionRoutes);
-
-// AI page route
-app.get('/ai', isAuthenticated, tierAccessControl, (req, res) => {
-  res.render('ai');
-});
+app.use('/search', searchRoutes);
+app.use('/ai', aiRoutes);
+app.use('/admin', adminRoutes);
+app.use('/subscription', subscriptionRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -134,7 +269,10 @@ app.use((req, res) => {
   });
 });
 
-// Error handler
+/**
+ * Global error handler
+ * Handles all uncaught errors in the application
+ */
 app.use((err, req, res, next) => {
   logger.error('Unhandled application error', {
     error: err.message,
@@ -143,46 +281,97 @@ app.use((err, req, res, next) => {
     method: req.method,
   });
   
+  // Check if headers have already been sent
+  if (res.headersSent) {
+    return next(err);
+  }
+  
   res.status(500).render('error', {
     title: 'Server Error',
     message: 'An unexpected error occurred',
-    error: process.env.NODE_ENV === 'development' ? err : {},
+    error: CONFIG.NODE_ENV === 'development' ? err : {},
     action: '<a href="/" class="btn btn-primary">Return to Home</a>'
   });
 });
 
-// Server setup
+/**
+ * Server setup function
+ * Sets up HTTP or HTTPS server based on configuration
+ * @returns {Object} The created server instance
+ */
 const setupServer = () => {
-  if (httpsEnable) {
+  let server;
+  
+  if (CONFIG.HTTPS_ENABLED) {
     try {
+      // Verify SSL files exist before attempting to read them
+      if (!fs.existsSync(process.env.SSL_KEY_PATH) || !fs.existsSync(process.env.SSL_CERT_PATH)) {
+        throw new Error('SSL certificate files not found');
+      }
+      
       const httpsOptions = {
         key: fs.readFileSync(process.env.SSL_KEY_PATH, 'utf8'),
         cert: fs.readFileSync(process.env.SSL_CERT_PATH, 'utf8'),
       };
-      const httpsServer = https.createServer(httpsOptions, app);
-      webSocketService.setupWebSocket(httpsServer, sessionParser);
+      
+      server = https.createServer(httpsOptions, app);
+      webSocketService.setupWebSocket(server, sessionParser);
       
       const host = process.env.WEBSITE_URL.replace(/https?:\/\//, '');
-      httpsServer.listen(port, '0.0.0.0', () => {
-        logger.info('HTTPS server started', { host, port });
+      server.listen(CONFIG.PORT, '0.0.0.0', () => {
+        logger.info('HTTPS server started', { host, port: CONFIG.PORT });
       });
     } catch (error) {
       logger.error('HTTPS server startup failed', {
         error: error.message,
         stack: error.stack,
       });
+      
+      // Fallback to HTTP if HTTPS fails
+      logger.info('Falling back to HTTP server');
+      server = setupHttpServer();
     }
   } else {
-    const server = http.createServer(app);
-    webSocketService.setupWebSocket(server, sessionParser);
-    
-    const host = process.env.WEBSITE_URL.replace(/https?:\/\//, '');
-    server.listen(port, '0.0.0.0', () => {
-      logger.info('HTTP server started', { host, port });
-    });
+    server = setupHttpServer();
   }
+  
+  return server;
 };
 
-setupServer();
+/**
+ * HTTP server setup helper function
+ * @returns {Object} The created HTTP server instance
+ */
+const setupHttpServer = () => {
+  const server = http.createServer(app);
+  webSocketService.setupWebSocket(server, sessionParser);
+  
+  const host = process.env.WEBSITE_URL ? process.env.WEBSITE_URL.replace(/https?:\/\//, '') : 'localhost';
+  server.listen(CONFIG.PORT, '0.0.0.0', () => {
+    logger.info('HTTP server started', { host, port: CONFIG.PORT });
+  });
+  
+  return server;
+};
 
-module.exports = { sessionParser };
+// Start the server
+const server = setupServer();
+
+// Set up graceful shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown(server, 'SIGTERM signal received'));
+process.on('SIGINT', () => gracefulShutdown(server, 'SIGINT signal received'));
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', {
+    error: err.message,
+    stack: err.stack,
+  });
+  gracefulShutdown(server, 'Uncaught exception');
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', {
+    reason: reason instanceof Error ? reason.message : reason,
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
+module.exports = { app, server, sessionParser };

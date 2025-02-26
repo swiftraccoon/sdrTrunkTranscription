@@ -203,8 +203,18 @@ wss.on('connection', (ws, request) => {
     delete currentlyPlaying[userId];
     // Keep the queue in case they reconnect soon
     setTimeout(() => {
-      if (!wss.clients.some(client => client.userId === userId)) {
+      // Fix: wss.clients.some is not a function
+      // Check if any client is still connected with this userId
+      let userStillConnected = false;
+      wss.clients.forEach((client) => {
+        if (client.userId === userId) {
+          userStillConnected = true;
+        }
+      });
+      
+      if (!userStillConnected) {
         delete userMP3Queues[userId];
+        logger.info(`Cleaned up queue for user ${userId} after timeout`);
       }
     }, 300000); // Clean up queue after 5 minutes if not reconnected
     
