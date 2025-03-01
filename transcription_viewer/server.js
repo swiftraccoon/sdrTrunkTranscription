@@ -251,14 +251,13 @@ app.on('error', (error) => {
   });
 });
 
-// Routes with better organization
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/', indexRoutes);
-app.use('/search', searchRoutes);
-app.use('/ai', aiRoutes);
-app.use('/admin', adminRoutes);
-app.use('/subscription', subscriptionRoutes);
+app.use('/', searchRoutes);
+app.use('/', aiRoutes);
+app.use('/', adminRoutes);
+app.use('/', subscriptionRoutes);
 
 // 404 handler
 app.use((req, res) => {

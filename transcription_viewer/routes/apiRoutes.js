@@ -32,62 +32,6 @@ function sanitizeTalkgroupId(tgid) {
 }
 
 /**
- * Generate a unique filename to avoid potential overwrites or collisions.
- * E.g., originalName = transcript.txt -> transcript-<timestamp>.txt
- */
-function generateUniqueFilename(originalName) {
-  const timestamp = Date.now();
-  const ext = path.extname(originalName);
-  const base = path.basename(originalName, ext);
-  return `${base}-${timestamp}${ext}`;
-}
-
-// Set up storage configuration for multer
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    let { talkgroupId } = req.body;
-    talkgroupId = sanitizeTalkgroupId(talkgroupId);
-
-    if (!talkgroupId) {
-      // If talkgroupId is invalid or missing, store in a "misc" directory or reject
-      const err = new Error('Missing or invalid talkgroupId');
-      err.statusCode = 400;
-      return cb(err);
-    }
-
-    const dir = path.join(__dirname, `../uploads/${talkgroupId}`);
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    cb(null, dir);
-  },
-  filename(req, file, cb) {
-    // Instead of using the original name directly, use a sanitized unique name
-    const safeFilename = generateUniqueFilename(file.originalname);
-    cb(null, safeFilename);
-  },
-});
-
-const upload = multer({ storage });
-
-/**
- * Middleware to check API key.
- * Logs only the first 6 characters of the invalid key for security.
- */
-const checkApiKey = (req, res, next) => {
-  const apiKey = req.get('X-API-Key');
-  if (apiKey !== process.env.API_KEY) {
-    const displayedKey = apiKey ? apiKey.substring(0, 6) + '...' : 'NONE';
-    console.error(`Unauthorized attempt with API key: ${displayedKey}`);
-    return res.status(403).send('Unauthorized: Invalid API key');
-  }
-  console.log('API key validated successfully');
-  next();
-};
-
-/**
  * Parse a timestamp in format "YYYYMMDD_HHMMSS" into a Date object.
  * Returns null if invalid or cannot parse.
  */
@@ -117,6 +61,50 @@ function parseCustomTimestamp(tsString) {
     return null;
   }
 }
+
+// Set up storage configuration for multer
+const storage = multer.diskStorage({
+  destination(req, file, cb) {
+    let { talkgroupId } = req.body;
+    talkgroupId = sanitizeTalkgroupId(talkgroupId);
+
+    if (!talkgroupId) {
+      // If talkgroupId is invalid or missing, store in a "misc" directory or reject
+      const err = new Error('Missing or invalid talkgroupId');
+      err.statusCode = 400;
+      return cb(err);
+    }
+
+    const dir = path.join(__dirname, `../uploads/${talkgroupId}`);
+
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename(req, file, cb) {
+    // Use the original filename directly as it's already unique
+    cb(null, file.originalname);
+  },
+});
+
+const upload = multer({ storage });
+
+/**
+ * Middleware to check API key.
+ * Logs only the first 6 characters of the invalid key for security.
+ */
+const checkApiKey = (req, res, next) => {
+  const apiKey = req.get('X-API-Key');
+  if (apiKey !== process.env.API_KEY) {
+    const displayedKey = apiKey ? apiKey.substring(0, 6) + '...' : 'NONE';
+    console.error(`Unauthorized attempt with API key: ${displayedKey}`);
+    return res.status(403).send('Unauthorized: Invalid API key');
+  }
+  console.log('API key validated successfully');
+  next();
+};
 
 router.post(
   '/upload',
