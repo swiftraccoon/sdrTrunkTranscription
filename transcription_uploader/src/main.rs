@@ -64,6 +64,10 @@ static API_KEY: Lazy<String> = Lazy::new(|| {
     env::var("API_KEY").expect("API_KEY environment variable not set")
 });
 
+// Include the tests module
+#[cfg(test)]
+mod tests;
+
 fn main() -> NotifyResult<()> {
     dotenv().ok();
     let monitored_directory = env::var("MONITORED_DIRECTORY")
@@ -78,7 +82,7 @@ fn main() -> NotifyResult<()> {
         let mut watcher = recommended_watcher(move |res| raw_tx.send(res).unwrap())?;
         watcher.watch(&root_path_buf, RecursiveMode::Recursive)?;
 
-        // 2) Set up an async MPSC channel for “debouncing” file events.
+        // 2) Set up an async MPSC channel for "debouncing" file events.
         let (debounce_tx, mut debounce_rx) = mpsc::unbounded_channel::<PathBuf>();
 
         // 3) Spawn a background task that coalesces events and waits for files to stabilize.
@@ -364,28 +368,44 @@ fn extract_file_info(file_path: &PathBuf) -> Option<(PathBuf, PathBuf)> {
 ///
 /// Then we remove any leading letters from the talkgroup ID after capture.
 fn parse_filename(filename: &str) -> Option<(String, String, String)> {
-    // This pattern allows e.g.:
-    //  20241223_204146...__TO_P52198_FROM_2499936.mp3  -> talkgroup "P52198" -> final "52198"
-    //  20241223_204051...__TO_P52189_[52193]_FROM_2151975.mp3
-    // And if `_FROM_` is missing, radio_id defaults to "123456"
-    let re = Regex::new(
-        r"(\d{8}_\d{6}).*__TO_([A-Za-z]?\d+)(?:\[[^\]]*\])?(?:_FROM_(\d+))?"
+    // First try the regex that requires _FROM_
+    let re_with_from = Regex::new(
+        r"(\d{8}_\d{6}).*__TO_([A-Za-z]?\d+).*?_FROM_(\d+)"
     ).unwrap();
-
-    re.captures(filename).and_then(|cap| {
+    
+    // If that doesn't match, try a fallback regex without _FROM_
+    let re_without_from = Regex::new(
+        r"(\d{8}_\d{6}).*__TO_([A-Za-z]?\d+)"
+    ).unwrap();
+    
+    // Try the first regex (with _FROM_)
+    if let Some(cap) = re_with_from.captures(filename) {
         // Group 1: timestamp
         let timestamp = cap.get(1)?.as_str().to_string();
 
         // Group 2: the talkgroup ID, possibly with a letter prefix.
-        // e.g. "P52189" => remove leading letters => "52189"
         let raw_tg = cap.get(2)?.as_str();
         let talkgroup_id = raw_tg.trim_start_matches(|c: char| c.is_ascii_alphabetic()).to_string();
 
-        // Group 3: optional radio ID, else default to "123456"
-        let radio_id = cap
-            .get(3)
-            .map_or("123456".to_string(), |m| m.as_str().to_string());
+        // Group 3: radio ID
+        let radio_id = cap.get(3)?.as_str().to_string();
 
-        Some((timestamp, talkgroup_id, radio_id))
-    })
+        return Some((timestamp, talkgroup_id, radio_id));
+    } 
+    // Try the fallback regex (without _FROM_)
+    else if let Some(cap) = re_without_from.captures(filename) {
+        // Group 1: timestamp
+        let timestamp = cap.get(1)?.as_str().to_string();
+
+        // Group 2: the talkgroup ID, possibly with a letter prefix.
+        let raw_tg = cap.get(2)?.as_str();
+        let talkgroup_id = raw_tg.trim_start_matches(|c: char| c.is_ascii_alphabetic()).to_string();
+
+        // Default radio ID when _FROM_ is not present
+        let radio_id = "123456".to_string();
+
+        return Some((timestamp, talkgroup_id, radio_id));
+    }
+    
+    None
 }

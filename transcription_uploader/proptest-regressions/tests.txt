@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 951b9c6289a4175cc0946ada58df673c943eb00391f32734dc0357ec92c48788 # shrinks to timestamp = "०𑙐᪀𞓰᮰𑁦႐𑙐_᱐߀𑶠0᮰𝟎", prefix = "", talkgroup_id = "𑃰𞋰᠐꯰"
+cc 0ab428864ebd3f1173c343653da1b059fbaf4b5f08eb549b77d10b8012be5825 # shrinks to timestamp = "𑇐０෦𑵐𖩠᪀᭐꣐_๐᥆𑃰꩐𑽐０", prefix = "", talkgroup_id = "𞋰𑄶໐०", suffix = "", radio_id = "𞥐0০០𑓐꯰𞓰"
