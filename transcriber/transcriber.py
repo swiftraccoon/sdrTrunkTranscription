@@ -11,7 +11,7 @@ import time
 import subprocess
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional, List
 
 import faster_whisper
 from mutagen.mp3 import MP3
@@ -19,7 +19,8 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 ROOT_DIRECTORY = "/home/USER/SDRTrunk/recordings"
-TOO_SHORT_DIRECTORY = "/home/USER/SDRTrunk/tooShortOrError"
+TOO_SHORT_DIRECTORY = "/home/USER/SDRTrunk/tooShort"
+ERROR_DIRECTORY = "/home/USER/SDRTrunk/errors"
 
 # Configure logging
 # Create a timed rotating file handler
@@ -44,25 +45,73 @@ class Config:
     """
     Holds all configuration constants for the transcription and file handling.
     """
-    MODEL_SIZE: str = "large-v3"
-    BEAM_SIZE: int = 8
-    PATIENCE: int = 8
-    BEST_OF: int = 6
-    LANGUAGE: str = "en"
+    # Core whisper model parameters
+    MODEL_SIZE: str = "distil-large-v3" # "large-v3" or "medium"
+    BEAM_SIZE: int = 12          # Beam size to use for decoding
+    PATIENCE: int = 18           # Beam search patience factor
+    BEST_OF: int = 80             # Number of candidates when sampling with non-zero temperature
+    LANGUAGE: str = "en"         # Language code for transcription (e.g., "en", "fr", etc.)
 
     # Voice Activity Detection (VAD) parameters
-    MIN_SILENCE_DURATION_MS: int = 500
-    THRESHOLD: float = 0.35
+    # Speech threshold. VAD outputs probabilities for each audio chunk,
+    # probabilities ABOVE this value are considered as SPEECH.
+    THRESHOLD: float = 0.42
+    
+    # Final speech chunks shorter than min_speech_duration_ms are filtered out
+    MIN_SPEECH_DURATION_MS: int = 0
+    
+    # Maximum duration of speech chunks in seconds. Longer chunks will be split
+    # at the timestamp of the last silence (>100ms), or aggressively if no silence found.
+    MAX_SPEECH_DURATION_S: float = float("inf")
+    
+    # In the end of each speech chunk, wait for min_silence_duration_ms before separating it
+    MIN_SILENCE_DURATION_MS: int = 250
+    
+    # Final speech chunks are padded by speech_pad_ms on each side
+    SPEECH_PAD_MS: int = 800
+    
+    # Temperature control
+    # Temperature for sampling. It can be a tuple of temperatures,
+    # which will be successively used upon failures according to thresholds.
+    TEMPERATURE: Tuple[float, float, float] = (0.01, 0.03, 0.09)
 
     # Additional transcription parameters
-    TEMPERATURE: Tuple[float, float, float] = (0.01, 0.03, 0.1)
-    REPETITION_PENALTY: float = 1.1
-    WINDOW_SIZE_SAMPLES: int = 2072
-    COMPRESSION_RATIO_THRESHOLD: float = 1.9
-    LOG_PROB_THRESHOLD: float = -1.0
-    NO_SPEECH_THRESHOLD: float = 0.35
-    CONDITION_ON_PREVIOUS_TEXT: bool = True
-    PROMPT_RESET_ON_TEMPERATURE: float = 0.5
+    REPETITION_PENALTY: float = 1.1       # Penalty applied to repeated tokens (>1 to penalize)
+    LENGTH_PENALTY: float = 1.0           # Exponential length penalty constant
+    NO_REPEAT_NGRAM_SIZE: int = 0         # Prevent repetitions of ngrams with this size (0 to disable)
+    
+    # Initial prompt for the first window (None for no prompt)
+    INITIAL_PROMPT: Optional[str] = None
+    
+    # Suppress blank outputs at beginning of sampling
+    SUPPRESS_BLANK: bool = True
+    
+    # List of token IDs to suppress during generation (-1 for default non-speech tokens)
+    SUPPRESS_TOKENS: Optional[List[int]] = [-1]
+    
+    # Only sample text tokens without timestamps
+    WITHOUT_TIMESTAMPS: bool = False
+    
+    # Extract word-level timestamps using cross-attention pattern
+    WORD_TIMESTAMPS: bool = False
+    
+    # If word_timestamps is True, merge these punctuation symbols with the next word
+    PREPEND_PUNCTUATIONS: str = "\"'([{-"
+    
+    # If word_timestamps is True, merge these punctuation symbols with the previous word
+    APPEND_PUNCTUATIONS: str = "\"'.,!?:)]}"
+    
+    # Enable VAD filter to remove parts without speech
+    VAD_FILTER: bool = True
+    
+    # Maximum number of new tokens to generate per chunk
+    MAX_NEW_TOKENS: Optional[int] = None
+    
+    # The length of audio segments (in seconds)
+    CHUNK_LENGTH: Optional[int] = None
+    
+    # Timestamps for clipping audio (format: "start,end,start,end,...")
+    CLIP_TIMESTAMPS: str = "0"
 
     # File handling and concurrency
     DURATION_THRESHOLD: float = 1.50
@@ -78,14 +127,16 @@ class MP3Handler(FileSystemEventHandler):
     3) Transcribes longer files using a limited worker pool for GPU usage.
     """
 
-    def __init__(self, base_directory: str, too_short_directory: str) -> None:
+    def __init__(self, base_directory: str, too_short_directory: str, error_directory: str) -> None:
         super().__init__()
 
         # Base directories
         self.base_directory: str = os.path.abspath(base_directory)
         self.too_short_directory: str = os.path.abspath(too_short_directory)
+        self.error_directory: str = os.path.abspath(error_directory)
 
         os.makedirs(self.too_short_directory, exist_ok=True)
+        os.makedirs(self.error_directory, exist_ok=True)
 
         # Thread pools:
         #  - High concurrency for file-size stability checks
@@ -237,7 +288,7 @@ class MP3Handler(FileSystemEventHandler):
     def handle_reencode_and_retry(self, path: str) -> None:
         """
         Re-encode the file via FFmpeg to fix any issues, then re-check duration and
-        move/transcribe accordingly. Moves file to too_short_directory if all else fails.
+        move/transcribe accordingly. Moves file to error_directory if all else fails.
         """
         temp_path = self.get_temp_path(path)
 
@@ -273,22 +324,22 @@ class MP3Handler(FileSystemEventHandler):
             logging.exception(f"Failed to re-process {path} after re-encoding.")
             if os.path.exists(temp_path):
                 os.remove(temp_path)  # Clean up
-            # Finally move original to error/tooShort directory
-            original_dest_path = os.path.join(
-                self.too_short_directory, os.path.basename(path))
-            shutil.move(path, original_dest_path)
-            logging.info(f"Moved original {path} to {original_dest_path} after repeated failures.")
+            # Move original to error directory since re-encoding failed
+            error_dest_path = os.path.join(
+                self.error_directory, os.path.basename(path))
+            shutil.move(path, error_dest_path)
+            logging.info(f"Moved original {path} to {error_dest_path} after repeated failures.")
 
     def get_temp_path(self, original_path: str) -> str:
         """
-        Generate a temporary file path in the 'too_short_directory' with '_temp' suffix
+        Generate a temporary file path in the 'error_directory' with '_temp' suffix
         to avoid collisions.
         """
         base_name = os.path.basename(original_path)
         base, ext = os.path.splitext(base_name)
         if not base.endswith('_temp'):
             temp_base = base + '_temp' + ext
-            return os.path.join(self.too_short_directory, temp_base)
+            return os.path.join(self.error_directory, temp_base)
         else:
             return original_path  # If it's already a temp file, just return as is
 
@@ -310,20 +361,28 @@ class MP3Handler(FileSystemEventHandler):
                     beam_size=Config.BEAM_SIZE,
                     patience=Config.PATIENCE,
                     best_of=Config.BEST_OF,
-                    no_speech_threshold=Config.NO_SPEECH_THRESHOLD,
-                    log_prob_threshold=Config.LOG_PROB_THRESHOLD,
-                    compression_ratio_threshold=Config.COMPRESSION_RATIO_THRESHOLD,
                     repetition_penalty=Config.REPETITION_PENALTY,
-                    condition_on_previous_text=Config.CONDITION_ON_PREVIOUS_TEXT,
-                    prompt_reset_on_temperature=Config.PROMPT_RESET_ON_TEMPERATURE,
-                    initial_prompt="",
+                    length_penalty=Config.LENGTH_PENALTY,
+                    no_repeat_ngram_size=Config.NO_REPEAT_NGRAM_SIZE,
+                    initial_prompt=Config.INITIAL_PROMPT,
+                    suppress_blank=Config.SUPPRESS_BLANK,
+                    suppress_tokens=Config.SUPPRESS_TOKENS,
+                    without_timestamps=Config.WITHOUT_TIMESTAMPS,
+                    word_timestamps=Config.WORD_TIMESTAMPS,
+                    prepend_punctuations=Config.PREPEND_PUNCTUATIONS,
+                    append_punctuations=Config.APPEND_PUNCTUATIONS,
                     temperature=Config.TEMPERATURE,
-                    vad_filter=True,
+                    vad_filter=Config.VAD_FILTER,
                     vad_parameters={
                         "threshold": Config.THRESHOLD,
+                        "min_speech_duration_ms": Config.MIN_SPEECH_DURATION_MS,
+                        "max_speech_duration_s": Config.MAX_SPEECH_DURATION_S,
                         "min_silence_duration_ms": Config.MIN_SILENCE_DURATION_MS,
-                        "window_size_samples": Config.WINDOW_SIZE_SAMPLES
+                        "speech_pad_ms": Config.SPEECH_PAD_MS
                     },
+                    max_new_tokens=Config.MAX_NEW_TOKENS,
+                    chunk_length=Config.CHUNK_LENGTH,
+                    clip_timestamps=Config.CLIP_TIMESTAMPS,
                     language=Config.LANGUAGE
                 )
 
@@ -346,6 +405,10 @@ class MP3Handler(FileSystemEventHandler):
 
             except Exception:
                 logging.exception(f"Failed to transcribe {path}")
+                # Move file to error directory on transcription failure
+                error_dest_path = os.path.join(self.error_directory, os.path.basename(path))
+                shutil.move(path, error_dest_path)
+                logging.info(f"Moved {path} to {error_dest_path} after transcription failure.")
 
             finally:
                 # Remove lock so future events for the same file can proceed
@@ -371,15 +434,15 @@ class MP3Handler(FileSystemEventHandler):
         return match.group(1) if match else "unknown"
 
 
-def start_monitoring(base_directory: str, too_short_directory: str) -> None:
+def start_monitoring(base_directory: str, too_short_directory: str, error_directory: str) -> None:
     """
     Helper function to set up the MP3Handler, attach a signal handler, and begin monitoring.
     """
-    handler = MP3Handler(base_directory, too_short_directory)
+    handler = MP3Handler(base_directory, too_short_directory, error_directory)
     # Allow Ctrl+C to gracefully stop the observer and shut down
     signal.signal(signal.SIGINT, lambda sig, frame: handler.stop())
     handler.start()
 
 
 if __name__ == "__main__":
-    start_monitoring(ROOT_DIRECTORY, TOO_SHORT_DIRECTORY)
+    start_monitoring(ROOT_DIRECTORY, TOO_SHORT_DIRECTORY, ERROR_DIRECTORY)

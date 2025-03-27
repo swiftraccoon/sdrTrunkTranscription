@@ -32,14 +32,21 @@ const MODEL_CONFIGS = {
   },
   google: {
     models: [
-      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash (Exp)', contextLength: 1056768 },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', contextLength: 1056768 },
-      { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B', contextLength: 1056768 },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', contextLength: 2105344 },
-      { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro (Deprecated)', contextLength: 8192 },
-      { id: 'text-embedding-004', name: 'Text Embedding 004', contextLength: 2048 },
-      { id: 'embedding-001', name: 'Embedding 001', contextLength: 2048 },
-      { id: 'aqa', name: 'AQA', contextLength: 8192 },
+      // Gemini 2.0 models
+      { id: 'gemini-2.0-flash-lite-001', name: 'Gemini 2.0 Flash-Lite', contextLength: 1056768 },
+      { id: 'gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', contextLength: 1056768 },
+      
+      // Gemini 1.5 models
+      { id: 'gemini-1.5-flash-001', name: 'Gemini 1.5 Flash (001)', contextLength: 1056768 },
+      { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash (002)', contextLength: 1056768 },
+      { id: 'gemini-1.5-pro-001', name: 'Gemini 1.5 Pro (001)', contextLength: 2105344 },
+      { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro (002)', contextLength: 2105344 },
+      
+      // Gemini 1.0 models
+      { id: 'gemini-1.0-pro', name: 'Gemini 1.0 Pro', contextLength: 8192 },
+      { id: 'gemini-1.0-pro-001', name: 'Gemini 1.0 Pro (001)', contextLength: 8192 },
+      { id: 'gemini-1.0-pro-002', name: 'Gemini 1.0 Pro (002)', contextLength: 8192 },
+      { id: 'gemini-1.0-pro-vision-001', name: 'Gemini 1.0 Pro Vision', contextLength: 8192 },
     ],
   },
 };
@@ -186,12 +193,21 @@ async function loadInteractionHistory() {
    * and displays it using client-side Markdown rendering.
    */
 async function sendQuery() {
+  console.log('sendQuery function called');
   const userInput = document.getElementById('userInput').value;
   const responseDiv = document.getElementById('aiResponse');
   const apiKey = document.getElementById('apiKey').value;
   const llmService = document.getElementById('llmService').value;
   const modelName = document.getElementById('modelName').value;
   const tgidsFilter = document.getElementById('tgidsFilter').value;
+
+  console.log('Form values:', { 
+    userInputLength: userInput.length,
+    apiKeyPresent: apiKey ? 'yes' : 'no', 
+    llmService, 
+    modelName, 
+    tgidsFilterPresent: tgidsFilter ? 'yes' : 'no' 
+  });
 
   if (!apiKey) {
     alert('Please enter your API key');
@@ -206,8 +222,11 @@ async function sendQuery() {
   responseDiv.innerHTML = '<div class="alert alert-info">Processing your request...</div>';
 
   try {
+    console.log('Validating date range...');
     const dateRange = await validateDateRange();
+    console.log('Date range validated:', dateRange);
 
+    console.log('Sending fetch request to /ai/query...');
     const response = await fetch('/ai/query', {
       method: 'POST',
       headers: {
@@ -224,7 +243,14 @@ async function sendQuery() {
       }),
     });
 
+    console.log('Fetch response received:', { 
+      status: response.status, 
+      statusText: response.statusText,
+      ok: response.ok
+    });
+
     const data = await response.json();
+    console.log('Response data:', data);
 
     if (response.status === 403) {
       responseDiv.innerHTML = '<div class="alert alert-warning">Investor tier required for this feature.</div>';
@@ -239,7 +265,7 @@ async function sendQuery() {
     if (data.answer) {
       // "marked" library usage
       const mdHTML = marked.parse(data.answer);
-
+      console.log('Rendering markdown response');
       responseDiv.innerHTML = `
           <div class="card">
             <div class="card-body">
@@ -254,13 +280,39 @@ async function sendQuery() {
   }
 }
 
-// Add event listener for history tab
+// Initialize everything when the page is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded - initializing AI page');
+  
+  // Initialize default date range
+  setDefaultDateRange();
+  
+  // Update model options based on initial service selection
+  updateModelOptions();
+  
+  // Set up event listener on the Ask AI button
+  const askAiButton = document.getElementById('askAiButton');
+  if (askAiButton) {
+    console.log('Found Ask AI button, adding event listener');
+    askAiButton.addEventListener('click', (e) => {
+      console.log('Ask AI button clicked via event listener');
+      sendQuery();
+    });
+  } else {
+    console.error('Ask AI button not found in the DOM');
+  }
+  
+  // Load interaction history if on the history tab
   const historyTab = document.getElementById('history-tab');
   if (historyTab) {
     historyTab.addEventListener('shown.bs.tab', loadInteractionHistory);
   }
-
-  // Set default date range
-  setDefaultDateRange();
+  
+  // Add event listener for LLM service change
+  const llmServiceSelect = document.getElementById('llmService');
+  if (llmServiceSelect) {
+    llmServiceSelect.addEventListener('change', updateModelOptions);
+  }
+  
+  console.log('AI page initialization complete');
 });
