@@ -1,0 +1,480 @@
+/**
+ * Mobile-First CSS for Transcription Viewer
+ * Optimized for touch devices and small screens
+ */
+
+/* ============================================
+   Mobile Base Styles (Mobile First Approach)
+   ============================================ */
+
+/* Prevent iOS zoom on form inputs */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+}
+
+/* Better touch targets - minimum 44x44px for iOS, 48x48px for Android */
+button,
+.btn,
+.play-button,
+.form-check-input,
+.nav-link,
+.dropdown-item {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Improved mobile typography */
+@media (max-width: 768px) {
+  body {
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+  
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  h4 { font-size: 1.1rem; }
+  h5, h6 { font-size: 1rem; }
+}
+
+/* ============================================
+   Mobile Navigation
+   ============================================ */
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .navbar-brand {
+    font-size: 1.1rem;
+  }
+  
+  .navbar-toggler {
+    padding: 0.25rem 0.5rem;
+    font-size: 1rem;
+  }
+  
+  /* Full-width dropdown on mobile */
+  .navbar-collapse {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: inherit;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dropdown-menu {
+    position: static !important;
+    transform: none !important;
+    width: 100%;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+  }
+}
+
+/* ============================================
+   Transcription Cards - Mobile Optimized
+   ============================================ */
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 0.75rem;
+  }
+  
+  .transcriptions-list {
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+  }
+  
+  .transcription {
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin: 0 -0.25rem; /* Slight negative margin for edge-to-edge feel */
+    position: relative;
+    /* Add touch feedback */
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    touch-action: manipulation;
+  }
+  
+  .transcription:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+  
+  .transcription-meta {
+    font-size: 0.8rem;
+    color: #6c757d;
+    display: block;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+  }
+  
+  .transcription-text {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  /* Better play button for mobile */
+  .play-button {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+  }
+  
+  .play-button:active {
+    background: rgba(0, 123, 255, 0.2);
+  }
+  
+  /* Add padding to prevent text overlap with play button */
+  .transcription {
+    padding-right: 4rem;
+  }
+}
+
+/* ============================================
+   Mobile Forms and Controls
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Stack form controls vertically on mobile */
+  .form-check.form-switch {
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+  
+  .form-check-input {
+    width: 44px;
+    height: 24px;
+    margin-right: 0.75rem;
+  }
+  
+  .form-check-label {
+    font-size: 0.95rem;
+    padding-top: 2px;
+  }
+  
+  /* Full-width select on mobile */
+  .form-select {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 16px; /* Prevent zoom */
+    border-radius: 8px;
+  }
+  
+  /* Better button styling */
+  .btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  
+  #loadMoreBtn {
+    width: 100%;
+    max-width: 300px;
+    margin: 1rem auto;
+    display: block;
+  }
+}
+
+/* ============================================
+   Mobile Audio Player
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Fixed audio player at bottom */
+  .audio-player-mobile {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    z-index: 1020;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .audio-player-mobile.active {
+    transform: translateY(0);
+  }
+  
+  .audio-player-mobile audio {
+    width: 100%;
+    height: 40px;
+  }
+  
+  /* Add padding to bottom when audio player is active */
+  body.audio-playing {
+    padding-bottom: 80px;
+  }
+}
+
+/* ============================================
+   Touch Gestures and Interactions
+   ============================================ */
+
+/* Swipe to delete/archive gesture area */
+.transcription {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  background: linear-gradient(to left, #dc3545, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 1rem;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+}
+
+.transcription.swiped .swipe-actions {
+  transform: translateX(0);
+}
+
+/* Pull to refresh indicator */
+.pull-to-refresh {
+  position: fixed;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #007bff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: top 0.3s ease;
+  z-index: 1040;
+}
+
+.pull-to-refresh.visible {
+  top: 70px;
+}
+
+.pull-to-refresh.refreshing {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: translateX(-50%) rotate(360deg); }
+}
+
+/* ============================================
+   Performance Optimizations
+   ============================================ */
+
+/* Use GPU acceleration for animations */
+.transcription,
+.play-button,
+.btn {
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   Dark Mode Support
+   ============================================ */
+
+@media (max-width: 768px) and (prefers-color-scheme: dark) {
+  .transcription {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .form-check.form-switch {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .audio-player-mobile {
+    background: rgba(33, 37, 41, 0.98);
+  }
+  
+  .play-button {
+    background: rgba(0, 123, 255, 0.2);
+  }
+}
+
+/* ============================================
+   Landscape Mode Adjustments
+   ============================================ */
+
+@media (max-width: 768px) and (orientation: landscape) {
+  .navbar {
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .transcription {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .container {
+    max-width: 100%;
+  }
+  
+  /* Hide footer in landscape to save space */
+  footer.footer {
+    display: none;
+  }
+}
+
+/* ============================================
+   Loading States
+   ============================================ */
+
+.skeleton-loader {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+  height: 60px;
+  margin-bottom: 0.75rem;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   Offline Indicator
+   ============================================ */
+
+.offline-indicator {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  background: #ffc107;
+  color: #000;
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  z-index: 1025;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+}
+
+.offline-indicator.show {
+  transform: translateY(0);
+}
+
+/* ============================================
+   Mobile Search
+   ============================================ */
+
+@media (max-width: 768px) {
+  .search-container {
+    position: sticky;
+    top: 56px; /* Below navbar */
+    background: inherit;
+    padding: 0.75rem;
+    z-index: 1020;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .search-input {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+  }
+  
+  .search-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  }
+}
+
+/* ============================================
+   Accessibility Improvements
+   ============================================ */
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+/* Skip to content link */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #007bff;
+  color: white;
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+  z-index: 1050;
+}
+
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .transcription {
+    border: 1px solid currentColor;
+  }
+  
+  .play-button {
+    border: 2px solid currentColor;
+  }
+}

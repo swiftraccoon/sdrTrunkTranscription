@@ -1,3 +1,9 @@
+"""
+SDR Trunk Transcription System
+
+This application monitors a directory for MP3 recordings from SDR Trunk,
+transcribes them using Whisper, and organizes the results by talkgroup.
+"""
 import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
@@ -9,236 +15,231 @@ import sys
 import threading
 import time
 import subprocess
-
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Tuple, Optional, List
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
 
 import faster_whisper
 from mutagen.mp3 import MP3
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+# Default path configuration - should be customized for deployment
 ROOT_DIRECTORY = "/home/USER/SDRTrunk/recordings"
 TOO_SHORT_DIRECTORY = "/home/USER/SDRTrunk/tooShort"
 ERROR_DIRECTORY = "/home/USER/SDRTrunk/errors"
 
-# Configure logging
-# Create a timed rotating file handler
-# Rotate every 14 days (2 weeks), keep last 5 backups
+# Configure logging with rotation
 handler = TimedRotatingFileHandler(
     filename="sdrtrunk_transcription.log",
     when="D",         # Rotate by day
     interval=14,      # Every 14 days
     backupCount=5     # Keep last 5 log files
 )
-
-# Configure formatter
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
-
-# Set up the root logger
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger().addHandler(handler)
 
 
-class Config:
-    """
-    Holds all configuration constants for the transcription and file handling.
-    """
-    # Core whisper model parameters
-    MODEL_SIZE: str = "distil-large-v3" # "large-v3" or "medium"
-    BEAM_SIZE: int = 12          # Beam size to use for decoding
-    PATIENCE: int = 18           # Beam search patience factor
-    BEST_OF: int = 80             # Number of candidates when sampling with non-zero temperature
-    LANGUAGE: str = "en"         # Language code for transcription (e.g., "en", "fr", etc.)
+class ProcessingError(Exception):
+    """Base exception for all processing errors in the application."""
+    pass
 
-    # Voice Activity Detection (VAD) parameters
-    # Speech threshold. VAD outputs probabilities for each audio chunk,
-    # probabilities ABOVE this value are considered as SPEECH.
-    THRESHOLD: float = 0.42
+
+class FileStabilityError(ProcessingError):
+    """Raised when a file does not stabilize within the expected time."""
+    pass
+
+
+class TranscriptionError(ProcessingError):
+    """Raised when transcription of an audio file fails."""
+    pass
+
+
+class FileFormatError(ProcessingError):
+    """Raised when there's an issue with the audio file format."""
+    pass
+
+
+@dataclass
+class WhisperConfig:
+    """Configuration parameters for Whisper transcription model."""
+    # Core model parameters
+    model_size: str = "large-v3" # vs distil-large-v3
+    beam_size: int = 8
+    patience: int = 8
+    best_of: int = 6
+    language: str = "en"
     
-    # Final speech chunks shorter than min_speech_duration_ms are filtered out
-    MIN_SPEECH_DURATION_MS: int = 0
-    
-    # Maximum duration of speech chunks in seconds. Longer chunks will be split
-    # at the timestamp of the last silence (>100ms), or aggressively if no silence found.
-    MAX_SPEECH_DURATION_S: float = float("inf")
-    
-    # In the end of each speech chunk, wait for min_silence_duration_ms before separating it
-    MIN_SILENCE_DURATION_MS: int = 250
-    
-    # Final speech chunks are padded by speech_pad_ms on each side
-    SPEECH_PAD_MS: int = 800
+    # VAD parameters
+    threshold: float = 0.42
+    min_speech_duration_ms: int = 0
+    max_speech_duration_s: float = float("inf")
+    min_silence_duration_ms: int = 250
+    speech_pad_ms: int = 800
     
     # Temperature control
-    # Temperature for sampling. It can be a tuple of temperatures,
-    # which will be successively used upon failures according to thresholds.
-    TEMPERATURE: Tuple[float, float, float] = (0.01, 0.03, 0.09)
-
-    # Additional transcription parameters
-    REPETITION_PENALTY: float = 1.1       # Penalty applied to repeated tokens (>1 to penalize)
-    LENGTH_PENALTY: float = 1.0           # Exponential length penalty constant
-    NO_REPEAT_NGRAM_SIZE: int = 0         # Prevent repetitions of ngrams with this size (0 to disable)
+    temperature: Tuple[float, ...] = field(default_factory=lambda: (0.01, 0.03, 0.09))
     
-    # Initial prompt for the first window (None for no prompt)
-    INITIAL_PROMPT: Optional[str] = None
+    # Additional parameters
+    repetition_penalty: float = 1.1
+    length_penalty: float = 1.0
+    no_repeat_ngram_size: int = 0
+    initial_prompt: Optional[str] = None
+    suppress_blank: bool = True
+    suppress_tokens: List[int] = field(default_factory=lambda: [-1])
+    without_timestamps: bool = False
+    word_timestamps: bool = False
+    prepend_punctuations: str = "\"'([{-"
+    append_punctuations: str = "\"'.,!?:)]}"
+    vad_filter: bool = True
+    max_new_tokens: Optional[int] = None
+    chunk_length: Optional[int] = None
+    clip_timestamps: str = "0"
+
+
+@dataclass
+class FileProcessingConfig:
+    """Configuration for file processing behavior."""
+    duration_threshold: float = 0.50  # Minimum duration in seconds to process
+    debounce_seconds: float = 1.0     # Time to wait between processing same file
+    stability_duration: int = 2       # Seconds file size must remain stable
+    max_duration_workers: int = 15    # Workers for file stability checking
+    max_transcription_workers: int = 2  # Workers for transcription (GPU intensive)
+
+
+class TranscriptionService:
+    """Handles the actual transcription of audio files using Whisper."""
     
-    # Suppress blank outputs at beginning of sampling
-    SUPPRESS_BLANK: bool = True
+    def __init__(self, config: WhisperConfig):
+        self.config = config
+        self.model = faster_whisper.WhisperModel(config.model_size, device="cuda")
     
-    # List of token IDs to suppress during generation (-1 for default non-speech tokens)
-    SUPPRESS_TOKENS: Optional[List[int]] = [-1]
-    
-    # Only sample text tokens without timestamps
-    WITHOUT_TIMESTAMPS: bool = False
-    
-    # Extract word-level timestamps using cross-attention pattern
-    WORD_TIMESTAMPS: bool = False
-    
-    # If word_timestamps is True, merge these punctuation symbols with the next word
-    PREPEND_PUNCTUATIONS: str = "\"'([{-"
-    
-    # If word_timestamps is True, merge these punctuation symbols with the previous word
-    APPEND_PUNCTUATIONS: str = "\"'.,!?:)]}"
-    
-    # Enable VAD filter to remove parts without speech
-    VAD_FILTER: bool = True
-    
-    # Maximum number of new tokens to generate per chunk
-    MAX_NEW_TOKENS: Optional[int] = None
-    
-    # The length of audio segments (in seconds)
-    CHUNK_LENGTH: Optional[int] = None
-    
-    # Timestamps for clipping audio (format: "start,end,start,end,...")
-    CLIP_TIMESTAMPS: str = "0"
-
-    # File handling and concurrency
-    DURATION_THRESHOLD: float = 1.50
-    DEBOUNCE_SECONDS: float = 1.0
-    STABILITY_DURATION: int = 2
-
-
-class MP3Handler(FileSystemEventHandler):
-    """
-    FileSystemEventHandler subclass that processes .mp3 files in a directory:
-    1) Waits for newly created files to stabilize in size.
-    2) Checks duration; moves short files to an error directory.
-    3) Transcribes longer files using a limited worker pool for GPU usage.
-    """
-
-    def __init__(self, base_directory: str, too_short_directory: str, error_directory: str) -> None:
-        super().__init__()
-
-        # Base directories
-        self.base_directory: str = os.path.abspath(base_directory)
-        self.too_short_directory: str = os.path.abspath(too_short_directory)
-        self.error_directory: str = os.path.abspath(error_directory)
-
-        os.makedirs(self.too_short_directory, exist_ok=True)
-        os.makedirs(self.error_directory, exist_ok=True)
-
-        # Thread pools:
-        #  - High concurrency for file-size stability checks
-        #  - Limited concurrency for GPU-intensive transcription
-        self.duration_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=15)
-        self.transcription_pool: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=2)
-
-        # GPU-based Whisper model
-        self.model: Any = faster_whisper.WhisperModel(Config.MODEL_SIZE, device="cuda")
-
-        # Lock dictionary for concurrency control on each file
-        self.file_locks = {}
-
-        # Debounce dictionary to avoid processing the same file multiple times in quick succession
-        self.file_times = {}
-
-        # Watchdog observer
-        self.observer = Observer()
-
-    def start(self) -> None:
+    def transcribe(self, file_path: Path) -> str:
         """
-        Starts monitoring the base directory for new MP3 files, processes existing files,
-        and keeps the observer running until stopped or interrupted.
+        Transcribe an audio file and return the text result.
+        
+        Args:
+            file_path: Path to the audio file to transcribe
+            
+        Returns:
+            The transcribed text
+            
+        Raises:
+            TranscriptionError: If transcription fails
         """
-        # Optionally process existing .mp3 files in the root directory first
-        self.process_existing_files()
-
-        # Schedule this handler (recursively or non-recursively, as you prefer)
-        self.observer.schedule(self, self.base_directory, recursive=True)
-        self.observer.start()
-
         try:
-            # Keep the thread alive
-            self.observer.join()
-        except KeyboardInterrupt:
-            self.stop()
+            segments, info = self.model.transcribe(
+                str(file_path),
+                beam_size=self.config.beam_size,
+                patience=self.config.patience,
+                best_of=self.config.best_of,
+                repetition_penalty=self.config.repetition_penalty,
+                length_penalty=self.config.length_penalty,
+                no_repeat_ngram_size=self.config.no_repeat_ngram_size,
+                initial_prompt=self.config.initial_prompt,
+                suppress_blank=self.config.suppress_blank,
+                suppress_tokens=self.config.suppress_tokens,
+                without_timestamps=self.config.without_timestamps,
+                word_timestamps=self.config.word_timestamps,
+                prepend_punctuations=self.config.prepend_punctuations,
+                append_punctuations=self.config.append_punctuations,
+                temperature=self.config.temperature,
+                vad_filter=self.config.vad_filter,
+                vad_parameters={
+                    "threshold": self.config.threshold,
+                    "min_speech_duration_ms": self.config.min_speech_duration_ms,
+                    "max_speech_duration_s": self.config.max_speech_duration_s,
+                    "min_silence_duration_ms": self.config.min_silence_duration_ms,
+                    "speech_pad_ms": self.config.speech_pad_ms
+                },
+                max_new_tokens=self.config.max_new_tokens,
+                chunk_length=self.config.chunk_length,
+                clip_timestamps=self.config.clip_timestamps,
+                language=self.config.language
+            )
+            
+            formatted_result = self._format_segments(segments)
+            return json.loads(formatted_result)['text']
+            
+        except Exception as e:
+            logging.exception(f"Transcription failed for {file_path}")
+            raise TranscriptionError(f"Failed to transcribe {file_path}: {str(e)}") from e
+    
+    def _format_segments(self, segments) -> str:
+        """
+        Format transcription segments into a unified text string.
+        
+        Args:
+            segments: Segments returned from the whisper model
+            
+        Returns:
+            JSON string with a single "text" key containing the combined text
+        """
+        formatted_segments = [{"text": segment.text} for segment in segments]
+        combined_text = " ".join(seg["text"].strip() for seg in formatted_segments)
+        return json.dumps({"text": combined_text}).replace('": "', '":"')
 
-    def stop(self) -> None:
-        """
-        Stops monitoring, shuts down thread pools, and exits the program.
-        """
-        self.observer.stop()
-        self.observer.join()
-        self.duration_pool.shutdown(wait=True)
-        self.transcription_pool.shutdown(wait=True)
-        logging.info("Monitoring stopped.")
-        sys.exit(0)
 
-    def on_created(self, event) -> None:
+class FileUtils:
+    """Static utility methods for file operations."""
+    
+    @staticmethod
+    def extract_talkgroup_id(filename: str) -> str:
         """
-        Called when a new file is created in the monitored directory.
-        We debounce events to avoid repeated triggers for the same file.
+        Extract the talkgroup ID from a filename.
+        
+        Args:
+            filename: Filename to extract from
+            
+        Returns:
+            Talkgroup ID or "unknown" if not found
         """
-        if event.is_directory:
-            return
-        if not event.src_path.endswith('.mp3'):
-            return
-
-        file_path = os.path.abspath(event.src_path)
-        current_time = time.time()
-        last_processed = self.file_times.get(file_path, 0)
-
-        # Debounce: only process if enough time has passed
-        if current_time - last_processed > Config.DEBOUNCE_SECONDS:
-            self.file_times[file_path] = current_time
-            logging.info(f"New MP3 file detected: {file_path}")
-            self.duration_pool.submit(self.wait_and_process_file, file_path)
-
-    def process_existing_files(self) -> None:
+        match = re.search(r"TO_(\d+)[._]", filename)
+        return match.group(1) if match else "unknown"
+    
+    @staticmethod
+    def get_audio_duration(file_path: Path) -> float:
         """
-        Optionally process any .mp3 files that already exist in the base directory
-        at the time the script starts.
+        Get the duration of an MP3 file in seconds.
+        
+        Args:
+            file_path: Path to the MP3 file
+            
+        Returns:
+            Duration in seconds
+            
+        Raises:
+            FileFormatError: If the file cannot be read as an MP3
         """
-        for root, dirs, files in os.walk(self.base_directory, topdown=True):
-            for filename in files:
-                if filename.endswith('.mp3'):
-                    full_path = os.path.join(root, filename)
-                    # If you only want to process items directly in the base directory (not subfolders):
-                    if os.path.dirname(full_path) == self.base_directory:
-                        self.duration_pool.submit(self.wait_and_process_file, full_path)
-
-    def wait_and_process_file(self, path: str) -> None:
+        try:
+            audio = MP3(file_path)
+            return audio.info.length
+        except Exception as e:
+            logging.exception(f"Failed to read MP3 metadata for {file_path}")
+            raise FileFormatError(f"Failed to read MP3 file {file_path}: {str(e)}") from e
+    
+    @staticmethod
+    def wait_for_file_stability(file_path: Path, stability_duration: int) -> bool:
         """
-        Wait for the file size to remain stable for a given duration, then process it.
-        """
-        stable = self.wait_for_file_stability(path, Config.STABILITY_DURATION)
-        if stable:
-            self.process_file(path)
-        else:
-            logging.error(f"File did not stabilize: {path}")
-
-    def wait_for_file_stability(self, path: str, stability_duration: int = 2) -> bool:
-        """
-        Checks if the file size remains the same for `stability_duration` consecutive seconds.
-        Returns True if stable, False otherwise.
+        Wait for a file to reach a stable size.
+        
+        Args:
+            file_path: Path to the file to monitor
+            stability_duration: Seconds the file size must remain stable
+            
+        Returns:
+            True if file stabilized, False otherwise
         """
         previous_size = -1
         stable_time = 0
-
+        
         while stable_time < stability_duration:
             try:
-                current_size = os.path.getsize(path)
+                current_size = file_path.stat().st_size
                 if current_size == previous_size:
                     stable_time += 1
                 else:
@@ -246,203 +247,338 @@ class MP3Handler(FileSystemEventHandler):
                     previous_size = current_size
                 time.sleep(1)
             except FileNotFoundError:
-                logging.exception(f"File not found during stability check: {path}")
+                logging.exception(f"File not found during stability check: {file_path}")
                 return False
-            except Exception:
-                logging.exception(f"Error during file stability check for {path}")
+            except Exception as e:
+                logging.exception(f"Error during file stability check for {file_path}")
                 return False
-
+        
         return True
-
-    def process_file(self, path: str) -> None:
+    
+    @staticmethod
+    def reencode_file(source_path: Path, temp_path: Path) -> bool:
         """
-        Reads the MP3 duration. If shorter than threshold, move to the 'too_short' directory.
-        Otherwise, submit the file for transcription.
-        If any issue occurs reading the MP3, attempts re-encoding.
+        Re-encode an audio file using ffmpeg to fix potential issues.
+        
+        Args:
+            source_path: Path to the source file
+            temp_path: Path for the re-encoded output
+            
+        Returns:
+            True if successful, False otherwise
         """
-        if not path.endswith('.mp3'):
-            return
-
-        file_dir = os.path.dirname(os.path.abspath(path))
-        if file_dir != self.base_directory:
-            logging.debug(f"Ignoring file not in root directory: {path}")
-            return
-
         try:
-            audio = MP3(path)
-            duration = audio.info.length
-            logging.info(f"Processed {path}: Duration = {duration:.2f} seconds")
-
-            if duration < Config.DURATION_THRESHOLD:
-                dest_path = os.path.join(self.too_short_directory, os.path.basename(path))
-                shutil.move(path, dest_path)
-                logging.info(f"Moved {path} to {dest_path} (below duration threshold).")
-            else:
-                # Submit to GPU-limited pool
-                self.transcription_pool.submit(self.transcribe_and_move, path)
-
-        except Exception:
-            logging.exception(f"Failed to read MP3 metadata for {path}. Will attempt to re-encode.")
-            self.handle_reencode_and_retry(path)
-
-    def handle_reencode_and_retry(self, path: str) -> None:
-        """
-        Re-encode the file via FFmpeg to fix any issues, then re-check duration and
-        move/transcribe accordingly. Moves file to error_directory if all else fails.
-        """
-        temp_path = self.get_temp_path(path)
-
-        try:
-            ffmpeg_command = ['ffmpeg', '-y', '-i', path, temp_path]
+            ffmpeg_command = ['ffmpeg', '-y', '-i', str(source_path), str(temp_path)]
             logging.debug(f"Running ffmpeg command: {' '.join(ffmpeg_command)}")
             result = subprocess.run(ffmpeg_command, capture_output=True, text=True)
-
+            
             if result.returncode != 0:
-                logging.error(f"ffmpeg failed to re-encode {path}: {result.stderr}")
-                raise Exception("ffmpeg re-encode failed")
+                logging.error(f"ffmpeg failed to re-encode {source_path}: {result.stderr}")
+                return False
+                
+            if not temp_path.exists():
+                logging.error(f"Re-encoded file not found: {temp_path}")
+                return False
+                
+            return True
+        except Exception as e:
+            logging.exception(f"Error re-encoding {source_path}")
+            return False
 
-            if not os.path.exists(temp_path):
-                raise FileNotFoundError(f"Re-encoded file not found: {temp_path}")
 
-            # Check re-encoded file's duration
-            audio = MP3(temp_path)
-            duration = audio.info.length
-            logging.info(f"Re-processed {temp_path}: Duration = {duration:.2f} seconds")
-
-            if duration < Config.DURATION_THRESHOLD:
-                final_path = os.path.join(self.too_short_directory, os.path.basename(path))
-                os.remove(path)  # Remove original
-                os.rename(temp_path, final_path)  # Move temp
-                logging.info(f"Moved {temp_path} to {final_path} (below duration threshold).")
-            else:
-                final_path = os.path.join(self.base_directory, os.path.basename(path))
-                os.remove(path)  # Remove original
-                os.rename(temp_path, final_path)  # Now safe to transcribe
-                self.transcription_pool.submit(self.transcribe_and_move, final_path)
-
-        except Exception:
-            logging.exception(f"Failed to re-process {path} after re-encoding.")
-            if os.path.exists(temp_path):
-                os.remove(temp_path)  # Clean up
-            # Move original to error directory since re-encoding failed
-            error_dest_path = os.path.join(
-                self.error_directory, os.path.basename(path))
-            shutil.move(path, error_dest_path)
-            logging.info(f"Moved original {path} to {error_dest_path} after repeated failures.")
-
-    def get_temp_path(self, original_path: str) -> str:
+class FileProcessor:
+    """
+    Handles the processing pipeline for audio files:
+    - Checks file stability and duration
+    - Handles re-encoding for problematic files
+    - Manages transcription and file organization
+    """
+    
+    def __init__(
+        self, 
+        base_dir: Path,
+        too_short_dir: Path,
+        error_dir: Path,
+        transcription_service: TranscriptionService,
+        config: FileProcessingConfig
+    ):
+        self.base_dir = base_dir
+        self.too_short_dir = too_short_dir
+        self.error_dir = error_dir
+        self.transcription_service = transcription_service
+        self.config = config
+        
+        # Thread pools
+        self.duration_pool = ThreadPoolExecutor(max_workers=config.max_duration_workers)
+        self.transcription_pool = ThreadPoolExecutor(max_workers=config.max_transcription_workers)
+        
+        # Concurrency management
+        self.file_locks: Dict[Path, threading.Lock] = {}
+        self.file_times: Dict[Path, float] = {}
+    
+    def process_file(self, file_path: Path) -> None:
         """
-        Generate a temporary file path in the 'error_directory' with '_temp' suffix
-        to avoid collisions.
+        Process a newly detected audio file.
+        
+        Args:
+            file_path: Path to the file to process
         """
-        base_name = os.path.basename(original_path)
-        base, ext = os.path.splitext(base_name)
-        if not base.endswith('_temp'):
-            temp_base = base + '_temp' + ext
-            return os.path.join(self.error_directory, temp_base)
-        else:
-            return original_path  # If it's already a temp file, just return as is
-
-    def transcribe_and_move(self, path: str) -> None:
+        current_time = time.time()
+        last_processed = self.file_times.get(file_path, 0)
+        
+        # Debounce: only process if enough time has passed
+        if current_time - last_processed > self.config.debounce_seconds:
+            self.file_times[file_path] = current_time
+            logging.info(f"Processing MP3 file: {file_path}")
+            self.duration_pool.submit(self._wait_and_process, file_path)
+    
+    def _wait_and_process(self, file_path: Path) -> None:
         """
-        Acquire a lock for this file, transcribe it, write text output, and then
-        move MP3 + text into a subfolder named after the talkgroup ID.
+        Wait for the file to stabilize, then process it based on duration.
+        
+        Args:
+            file_path: Path to the file to process
         """
-        lock = self.file_locks.setdefault(path, threading.Lock())
-        with lock:
-            if not os.path.exists(path):
-                logging.error(f"File not found for transcription: {path}")
-                del self.file_locks[path]
+        try:
+            if not FileUtils.wait_for_file_stability(file_path, self.config.stability_duration):
+                logging.error(f"File did not stabilize: {file_path}")
                 return
-
+                
+            self._check_duration_and_process(file_path)
+                
+        except Exception as e:
+            logging.exception(f"Error processing {file_path}")
+            self._move_to_error(file_path, f"Unexpected error: {str(e)}")
+    
+    def _check_duration_and_process(self, file_path: Path) -> None:
+        """
+        Check the duration of a file and process accordingly.
+        
+        Args:
+            file_path: Path to the file to check
+        """
+        try:
+            duration = FileUtils.get_audio_duration(file_path)
+            logging.info(f"Processed {file_path}: Duration = {duration:.2f} seconds")
+            
+            if duration < self.config.duration_threshold:
+                self._move_to_too_short(file_path)
+            else:
+                self.transcription_pool.submit(self._transcribe_and_organize, file_path)
+                
+        except FileFormatError:
+            self._attempt_repair_and_retry(file_path)
+    
+    def _attempt_repair_and_retry(self, file_path: Path) -> None:
+        """
+        Attempt to repair a problematic audio file through re-encoding.
+        
+        Args:
+            file_path: Path to the file to repair
+        """
+        temp_path = self.error_dir / f"{file_path.stem}_temp{file_path.suffix}"
+        
+        if FileUtils.reencode_file(file_path, temp_path):
             try:
-                segments, info = self.model.transcribe(
-                    path,
-                    beam_size=Config.BEAM_SIZE,
-                    patience=Config.PATIENCE,
-                    best_of=Config.BEST_OF,
-                    repetition_penalty=Config.REPETITION_PENALTY,
-                    length_penalty=Config.LENGTH_PENALTY,
-                    no_repeat_ngram_size=Config.NO_REPEAT_NGRAM_SIZE,
-                    initial_prompt=Config.INITIAL_PROMPT,
-                    suppress_blank=Config.SUPPRESS_BLANK,
-                    suppress_tokens=Config.SUPPRESS_TOKENS,
-                    without_timestamps=Config.WITHOUT_TIMESTAMPS,
-                    word_timestamps=Config.WORD_TIMESTAMPS,
-                    prepend_punctuations=Config.PREPEND_PUNCTUATIONS,
-                    append_punctuations=Config.APPEND_PUNCTUATIONS,
-                    temperature=Config.TEMPERATURE,
-                    vad_filter=Config.VAD_FILTER,
-                    vad_parameters={
-                        "threshold": Config.THRESHOLD,
-                        "min_speech_duration_ms": Config.MIN_SPEECH_DURATION_MS,
-                        "max_speech_duration_s": Config.MAX_SPEECH_DURATION_S,
-                        "min_silence_duration_ms": Config.MIN_SILENCE_DURATION_MS,
-                        "speech_pad_ms": Config.SPEECH_PAD_MS
-                    },
-                    max_new_tokens=Config.MAX_NEW_TOKENS,
-                    chunk_length=Config.CHUNK_LENGTH,
-                    clip_timestamps=Config.CLIP_TIMESTAMPS,
-                    language=Config.LANGUAGE
-                )
-
-                formatted_result = self.format_segments(segments)
-                transcription_text = json.loads(formatted_result)['text']
-
-                talkgroup_id = self.extract_talkgroup_id(os.path.basename(path))
-                final_directory = os.path.join(self.base_directory, talkgroup_id)
-                os.makedirs(final_directory, exist_ok=True)
-
-                # Create text filename based on the MP3 filename (minus extension)
-                base_filename = os.path.splitext(os.path.basename(path))[0]
-                transcription_path = os.path.join(final_directory, base_filename + ".txt")
-                with open(transcription_path, 'w') as f:
-                    f.write(transcription_text)
-
-                final_mp3_path = os.path.join(final_directory, os.path.basename(path))
-                shutil.move(path, final_mp3_path)
-                logging.info(f"Transcribed and moved {path} -> {final_directory}")
-
-            except Exception:
-                logging.exception(f"Failed to transcribe {path}")
-                # Move file to error directory on transcription failure
-                error_dest_path = os.path.join(self.error_directory, os.path.basename(path))
-                shutil.move(path, error_dest_path)
-                logging.info(f"Moved {path} to {error_dest_path} after transcription failure.")
-
+                duration = FileUtils.get_audio_duration(temp_path)
+                logging.info(f"Re-processed {temp_path}: Duration = {duration:.2f} seconds")
+                
+                if duration < self.config.duration_threshold:
+                    # Move to too short and clean up
+                    final_path = self.too_short_dir / file_path.name
+                    file_path.unlink(missing_ok=True)  # Remove original
+                    temp_path.rename(final_path)  # Move temp to final location
+                    logging.info(f"Moved {temp_path} to {final_path} (below duration threshold).")
+                else:
+                    # Replace original with fixed version
+                    file_path.unlink(missing_ok=True)  # Remove original
+                    temp_path.rename(file_path)  # Replace with fixed version
+                    self.transcription_pool.submit(self._transcribe_and_organize, file_path)
+                    
+            except Exception as e:
+                logging.exception(f"Failed to process repaired file {temp_path}")
+                temp_path.unlink(missing_ok=True)  # Clean up temp file
+                self._move_to_error(file_path, f"Failed after repair attempt: {str(e)}")
+        else:
+            # Re-encoding failed
+            self._move_to_error(file_path, "Failed to repair file through re-encoding")
+    
+    def _transcribe_and_organize(self, file_path: Path) -> None:
+        """
+        Transcribe a file and organize it by talkgroup ID.
+        
+        Args:
+            file_path: Path to the file to transcribe
+        """
+        lock = self.file_locks.setdefault(file_path, threading.Lock())
+        
+        with lock:
+            if not file_path.exists():
+                logging.error(f"File not found for transcription: {file_path}")
+                if file_path in self.file_locks:
+                    del self.file_locks[file_path]
+                return
+                
+            try:
+                # Get transcription
+                transcription_text = self.transcription_service.transcribe(file_path)
+                
+                # Get talkgroup ID and prepare target directory
+                talkgroup_id = FileUtils.extract_talkgroup_id(file_path.name)
+                target_dir = self.base_dir / talkgroup_id
+                target_dir.mkdir(exist_ok=True)
+                
+                # Create text file with transcription
+                text_path = target_dir / f"{file_path.stem}.txt"
+                text_path.write_text(transcription_text)
+                
+                # Move MP3 file to target directory
+                target_path = target_dir / file_path.name
+                file_path.rename(target_path)
+                
+                logging.info(f"Transcribed and moved {file_path} -> {target_dir}")
+                
+            except TranscriptionError as e:
+                logging.error(f"Transcription error: {str(e)}")
+                self._move_to_error(file_path, f"Transcription failed: {str(e)}")
+                
+            except Exception as e:
+                logging.exception(f"Unexpected error during transcription of {file_path}")
+                self._move_to_error(file_path, f"Unexpected error: {str(e)}")
+                
             finally:
                 # Remove lock so future events for the same file can proceed
-                del self.file_locks[path]
-
-    def format_segments(self, segments) -> str:
+                if file_path in self.file_locks:
+                    del self.file_locks[file_path]
+    
+    def _move_to_too_short(self, file_path: Path) -> None:
         """
-        Take a list of segment objects, extract .text, join into a single string,
-        and wrap it in JSON with key "text".
+        Move a file to the 'too short' directory.
+        
+        Args:
+            file_path: Path to the file to move
         """
-        formatted_segments = [{"text": segment.text} for segment in segments]
-        combined_text = " ".join(seg["text"].strip() for seg in formatted_segments)
-
-        # Return JSON with a single top-level key 'text'
-        return json.dumps({"text": combined_text}).replace('": "', '":"')
-
-    def extract_talkgroup_id(self, filename: str) -> str:
+        dest_path = self.too_short_dir / file_path.name
+        file_path.rename(dest_path)
+        logging.info(f"Moved {file_path} to {dest_path} (below duration threshold).")
+    
+    def _move_to_error(self, file_path: Path, reason: str) -> None:
         """
-        Extract talkgroup ID from filename if it matches 'TO_<digits>.' or 'TO_<digits>_'.
-        Returns 'unknown' if not found.
+        Move a file to the error directory.
+        
+        Args:
+            file_path: Path to the file to move
+            reason: Reason for the move
         """
-        match = re.search(r"TO_(\d+)[._]", filename)
-        return match.group(1) if match else "unknown"
+        if file_path.exists():
+            dest_path = self.error_dir / file_path.name
+            try:
+                file_path.rename(dest_path)
+                logging.info(f"Moved {file_path} to {dest_path}: {reason}")
+            except Exception as e:
+                logging.error(f"Failed to move {file_path} to error directory: {str(e)}")
 
 
-def start_monitoring(base_directory: str, too_short_directory: str, error_directory: str) -> None:
+class MP3Handler(FileSystemEventHandler):
     """
-    Helper function to set up the MP3Handler, attach a signal handler, and begin monitoring.
+    Monitors directory for new MP3 files and processes them.
     """
-    handler = MP3Handler(base_directory, too_short_directory, error_directory)
-    # Allow Ctrl+C to gracefully stop the observer and shut down
+    
+    def __init__(self, processor: FileProcessor, base_dir: Path):
+        super().__init__()
+        self.processor = processor
+        self.base_dir = base_dir
+        self.observer = Observer()
+    
+    def on_created(self, event) -> None:
+        """
+        Handle file creation events.
+        
+        Args:
+            event: The file system event
+        """
+        if event.is_directory:
+            return
+            
+        file_path = Path(event.src_path)
+        if file_path.suffix.lower() != '.mp3':
+            return
+            
+        # Only process files directly in the base directory
+        if file_path.parent != self.base_dir:
+            return
+            
+        self.processor.process_file(file_path)
+    
+    def process_existing_files(self) -> None:
+        """
+        Process MP3 files that already exist in the base directory.
+        """
+        for file_path in self.base_dir.glob('*.mp3'):
+            self.processor.process_file(file_path)
+    
+    def start(self) -> None:
+        """
+        Start monitoring the directory.
+        """
+        # Process existing files first
+        self.process_existing_files()
+        
+        # Set up directory monitoring
+        self.observer.schedule(self, str(self.base_dir), recursive=False)
+        self.observer.start()
+        
+        try:
+            self.observer.join()
+        except KeyboardInterrupt:
+            self.stop()
+    
+    def stop(self) -> None:
+        """
+        Stop monitoring the directory.
+        """
+        self.observer.stop()
+        self.observer.join()
+        logging.info("Monitoring stopped.")
+
+
+def main():
+    """Main entry point for the application."""
+    # Convert string paths to Path objects
+    base_dir = Path(ROOT_DIRECTORY)
+    too_short_dir = Path(TOO_SHORT_DIRECTORY)
+    error_dir = Path(ERROR_DIRECTORY)
+    
+    # Ensure directories exist
+    base_dir.mkdir(exist_ok=True)
+    too_short_dir.mkdir(exist_ok=True)
+    error_dir.mkdir(exist_ok=True)
+    
+    # Create configuration objects
+    whisper_config = WhisperConfig()
+    file_config = FileProcessingConfig()
+    
+    # Set up the transcription service
+    transcription_service = TranscriptionService(whisper_config)
+    
+    # Create the file processor
+    processor = FileProcessor(
+        base_dir=base_dir,
+        too_short_dir=too_short_dir,
+        error_dir=error_dir,
+        transcription_service=transcription_service,
+        config=file_config
+    )
+    
+    # Create and start the file handler
+    handler = MP3Handler(processor, base_dir)
+    
+    # Set up signal handling for graceful shutdown
     signal.signal(signal.SIGINT, lambda sig, frame: handler.stop())
+    
+    logging.info(f"Starting SDR Trunk Transcription monitoring of {base_dir}")
     handler.start()
 
 
 if __name__ == "__main__":
-    start_monitoring(ROOT_DIRECTORY, TOO_SHORT_DIRECTORY, ERROR_DIRECTORY)
+    main()

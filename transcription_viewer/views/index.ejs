@@ -68,6 +68,7 @@
   </script>
 
   <script src="/js/main.js" type="module"></script>
+  <script src="/js/mobile.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const groupFilter = document.getElementById('groupFilter');
@@ -77,22 +78,7 @@
         });
       }
 
-      const autoplayToggle = document.getElementById('autoplayToggle');
-      if (autoplayToggle) {
-        autoplayToggle.addEventListener('change', function () {
-          const autoplayState = this.checked;
-          fetch('/api/toggle-autoplay', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ autoplay: autoplayState }),
-          })
-            .then(r => r.json())
-            .then(data => {
-              console.log('Server confirmed autoplay preference:', data);
-            })
-            .catch(err => console.error('Error updating autoplay:', err));
-        });
-      }
+      // Autoplay toggle is handled in main.js TranscriptionManager
 
       const loadMoreBtn = document.getElementById('loadMoreBtn');
       if (loadMoreBtn) {

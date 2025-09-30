@@ -4,12 +4,16 @@ class TranscriptionManager {
   constructor() {
     this.ws = null;
     this.reconnectionAttempts = 0;
-    this.autoplayEnabled = false;
+    // Get autoplay preference from localStorage (device-specific)
+    this.autoplayEnabled = localStorage.getItem('autoplayEnabled') === 'true';
     this.audioQueue = [];
     this.currentlyPlaying = '';
     this.lastPlayedAudio = '';
+    this.playedAudioHistory = new Set(); // Track all played audio to prevent loops
     this.maxReconnectionAttempts = 6;
     this.initialized = false;
+    this.audioElement = null; // Reusable audio element
+    this.userInteracted = false; // Track if user has interacted (for iOS)
 
     // Classes used for theming
     this.themeClasses = [
@@ -28,9 +32,51 @@ class TranscriptionManager {
     this.initialized = true;
     logger.info('Initializing TranscriptionManager');
 
+    this.setupAudioElement();
     this.setupEventListeners();
     this.applyStoredTheme();
     this.setupWebSocket();
+    
+    // Set initial autoplay state in UI
+    const toggleEl = document.getElementById('autoplayToggle');
+    if (toggleEl) {
+      toggleEl.checked = this.autoplayEnabled;
+    }
+  }
+
+  setupAudioElement() {
+    // Create a reusable audio element for better control
+    this.audioElement = new Audio();
+    this.audioElement.preload = 'auto';
+    
+    // Handle audio ended event
+    this.audioElement.addEventListener('ended', () => {
+      logger.debug('Audio playback completed', { path: this.currentlyPlaying });
+      // Add to history to prevent replaying
+      if (this.currentlyPlaying) {
+        this.playedAudioHistory.add(this.currentlyPlaying);
+        this.lastPlayedAudio = this.currentlyPlaying;
+      }
+      this.currentlyPlaying = '';
+
+      if (this.autoplayEnabled) {
+        if (this.audioQueue.length > 0) {
+          // More items in queue—play next
+          this.playNextAudio();
+        }
+        // Don't request more from server - let server push new audio as it arrives
+      }
+    });
+    
+    // Handle audio errors
+    this.audioElement.addEventListener('error', (e) => {
+      logger.error('Audio playback error', { error: e, path: this.currentlyPlaying });
+      this.currentlyPlaying = '';
+      // Try next audio if available
+      if (this.autoplayEnabled && this.audioQueue.length > 0) {
+        this.playNextAudio();
+      }
+    });
   }
 
   setupWebSocket() {
@@ -54,7 +100,10 @@ class TranscriptionManager {
     this.ws.onopen = () => {
       logger.info('WebSocket connection established');
       this.reconnectionAttempts = 0;
-      this.sendAutoplayStatus();
+      // Always send autoplay status on connection with device ID
+      setTimeout(() => {
+        this.sendAutoplayStatus();
+      }, 100); // Small delay to ensure connection is ready
     };
 
     this.ws.onmessage = (event) => {
@@ -81,19 +130,29 @@ class TranscriptionManager {
 
   handleWebSocketMessage(data) {
     switch (data.action) {
+      case 'requestAutoplayStatus':
+        // Server is asking for our device-specific autoplay preference
+        this.sendAutoplayStatus();
+        break;
+        
       case 'autoplayStatus':
       case 'autoplayStatusUpdated':
-        this.updateAutoplayStatus(data.autoplay);
-        logger.info('Autoplay status updated from server', { newStatus: data.autoplay });
+      case 'autoplayStatusConfirmed':
+        // Server acknowledged our autoplay status
+        logger.info('Autoplay status confirmed by server', { status: data.autoplay });
         // If we have items in the queue and autoplay is enabled, start playing
-        if (this.autoplayEnabled && this.audioQueue.length > 0) {
+        if (this.autoplayEnabled && this.audioQueue.length > 0 && !this.currentlyPlaying) {
           this.playNextAudio();
         }
         break;
 
       case 'nextAudio':
+      case 'audioAvailable':  // Handle both message types
         if (!this.autoplayEnabled) {
-          logger.debug('Ignoring nextAudio, autoplay disabled', { autoplayEnabled: this.autoplayEnabled });
+          logger.debug('Ignoring audio, autoplay disabled', { 
+            autoplayEnabled: this.autoplayEnabled,
+            action: data.action 
+          });
           return;
         }
         if (!this.shouldPlayAudio(data)) {
@@ -102,7 +161,17 @@ class TranscriptionManager {
           });
           return;
         }
-        logger.info('Received nextAudio message', { path: data.path });
+        
+        // Check if we've already played this audio
+        if (this.playedAudioHistory.has(data.path)) {
+          logger.debug('Audio already played before', { path: data.path });
+          return;
+        }
+        
+        logger.info('Received audio message', { 
+          action: data.action,
+          path: data.path 
+        });
         this.queueAudio(data.path);
         break;
 
@@ -121,6 +190,8 @@ class TranscriptionManager {
 
   updateAutoplayStatus(status) {
     this.autoplayEnabled = status;
+    // Store in localStorage for device-specific preference
+    localStorage.setItem('autoplayEnabled', status.toString());
     const toggleEl = document.getElementById('autoplayToggle');
     if (toggleEl) {
       toggleEl.checked = status;
@@ -174,13 +245,13 @@ class TranscriptionManager {
   }
 
   queueAudio(path) {
-    // Avoid duplicates
+    // Avoid duplicates - check if already played, playing, or queued
     if (
       this.currentlyPlaying === path ||
       this.audioQueue.includes(path) ||
-      this.lastPlayedAudio === path
+      this.playedAudioHistory.has(path)
     ) {
-      logger.debug('Audio already queued or recently played', { path });
+      logger.debug('Audio already queued or played before', { path });
       return;
     }
 
@@ -197,32 +268,96 @@ class TranscriptionManager {
     const path = this.audioQueue.shift();
     if (!path) return;
 
+    // Double-check we haven't played this already
+    if (this.playedAudioHistory.has(path)) {
+      logger.debug('Skipping already played audio', { path });
+      // Try next in queue
+      if (this.audioQueue.length > 0) {
+        this.playNextAudio();
+      }
+      return;
+    }
+
     this.currentlyPlaying = path;
     logger.info('Starting audio playback', { path });
 
     try {
-      const audio = new Audio(path);
-      await audio.play();
-
-      audio.onended = () => {
-        logger.debug('Audio playback completed', { path });
-        this.lastPlayedAudio = path;
-        this.currentlyPlaying = '';
-
-        if (this.autoplayEnabled) {
-          if (this.audioQueue.length > 0) {
-            // More items in queue—play next
-            this.playNextAudio();
-          } else if (this.ws?.readyState === WebSocket.OPEN) {
-            // If queue is empty, request next from the server
-            this.ws.send(JSON.stringify({ action: 'requestNextAudio' }));
+      // Use the reusable audio element
+      this.audioElement.src = path;
+      
+      // For iOS Safari, we need user interaction first
+      // Try to play with user interaction fallback
+      const playPromise = this.audioElement.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          // Successfully playing
+          this.userInteracted = true;
+          logger.debug('Audio playing successfully', { path });
+        }).catch(error => {
+          if (error.name === 'NotAllowedError') {
+            // Browser blocked autoplay, show notification to user
+            logger.warn('Autoplay blocked by browser', { error: error.message });
+            this.showAutoplayBlockedNotification();
+            this.currentlyPlaying = '';
+            
+            // Keep the audio in queue for retry after user interaction
+            this.audioQueue.unshift(path);
+          } else {
+            logger.error('Audio playback failed', { error, path });
+            this.currentlyPlaying = '';
+            // Mark as played so we don't retry this file
+            this.playedAudioHistory.add(path);
+            
+            // Try next audio if available
+            if (this.autoplayEnabled && this.audioQueue.length > 0) {
+              setTimeout(() => this.playNextAudio(), 500);
+            }
           }
-        }
-      };
+        });
+      }
     } catch (error) {
-      logger.error('Audio playback failed', error, { path });
+      logger.error('Audio playback failed', { error, path });
       this.currentlyPlaying = '';
+      // Mark as played so we don't retry
+      this.playedAudioHistory.add(path);
     }
+  }
+  
+  showAutoplayBlockedNotification() {
+    // Create or update notification
+    let notification = document.getElementById('autoplay-blocked-notification');
+    if (!notification) {
+      notification = document.createElement('div');
+      notification.id = 'autoplay-blocked-notification';
+      notification.className = 'alert alert-warning alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+      notification.style.zIndex = '9999';
+      notification.innerHTML = `
+        <strong>Autoplay Blocked</strong><br>
+        ${/iPhone|iPad|iPod/.test(navigator.userAgent) ? 'Tap' : 'Click'} anywhere on the page to enable audio playback.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      document.body.appendChild(notification);
+      
+      // Remove notification after 5 seconds
+      setTimeout(() => {
+        notification?.remove();
+      }, 5000);
+    }
+    
+    // Add both click and touchstart handlers for mobile
+    const enableAudio = () => {
+      if (this.autoplayEnabled && this.audioQueue.length > 0) {
+        logger.info('User interaction detected, attempting to play queued audio');
+        // Try to play the next audio in queue
+        this.playNextAudio();
+      }
+    };
+    
+    // For mobile devices (especially iOS)
+    document.addEventListener('touchstart', enableAudio, { once: true });
+    // For desktop
+    document.addEventListener('click', enableAudio, { once: true });
   }
 
   handleNewTranscription(transcriptionData) {
@@ -466,19 +601,42 @@ class TranscriptionManager {
     if (toggleEl) {
       toggleEl.addEventListener('change', () => {
         this.autoplayEnabled = toggleEl.checked;
+        // Save to localStorage for device-specific preference
+        localStorage.setItem('autoplayEnabled', this.autoplayEnabled.toString());
+        logger.info('Autoplay toggled by user', { enabled: this.autoplayEnabled });
+        
+        // Send to server for WebSocket coordination (optional)
         this.sendAutoplayStatus();
+        
+        // If enabling autoplay and we have audio ready, start playing
+        if (this.autoplayEnabled && this.audioQueue.length > 0) {
+          this.playNextAudio();
+        }
       });
     }
   }
 
   sendAutoplayStatus() {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      // Send device-specific autoplay status
+      const deviceId = this.getDeviceId();
       this.ws.send(JSON.stringify({
         action: 'autoplayStatus',
         autoplay: this.autoplayEnabled,
+        deviceId: deviceId
       }));
-      logger.info('Sent autoplay status', { enabled: this.autoplayEnabled });
+      logger.info('Sent autoplay status', { enabled: this.autoplayEnabled, deviceId });
     }
+  }
+  
+  getDeviceId() {
+    // Get or create a unique device ID stored in localStorage
+    let deviceId = localStorage.getItem('deviceId');
+    if (!deviceId) {
+      deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+      localStorage.setItem('deviceId', deviceId);
+    }
+    return deviceId;
   }
 
   /************************************************
