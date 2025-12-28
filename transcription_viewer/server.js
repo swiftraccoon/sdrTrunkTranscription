@@ -58,7 +58,7 @@ const CONFIG = {
   COOKIE_MAX_AGE: parseInt(process.env.COOKIE_MAX_AGE || 24 * 60 * 60 * 1000), // Default: 24 hours
   SESSION_TTL: parseInt(process.env.SESSION_TTL || 24 * 60 * 60), // Default: 24 hours
   RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000), // Default: 15 minutes
-  RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX || 100), // Default: 100 requests per window
+  RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX || 1000), // Default: 100 requests per window
   VERBOSE_LOGGING: process.env.VERBOSE_LOGGING === 'true',
 };
 

@@ -11,6 +11,17 @@
     <!-- The Search Form -->
     <form action="/search" method="get" class="mt-4">
       <div class="mb-3">
+        <label for="group" class="form-label">TGID Filter</label>
+        <select class="form-select" id="group" name="group">
+          <% if (typeof groups !== 'undefined' && Array.isArray(groups)) { %>
+            <% groups.forEach(function(g) { %>
+              <option value="<%= g %>" <%= query?.group === g ? 'selected' : '' %>><%= g %></option>
+            <% }) %>
+          <% } %>
+        </select>
+      </div>
+
+      <div class="mb-3">
         <label for="keyword" class="form-label">Keyword</label>
         <input 
           type="text" 

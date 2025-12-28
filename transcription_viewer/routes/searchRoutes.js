@@ -14,7 +14,7 @@ const talkgroupConfig = require('../utils/talkgroupConfig');
 router.get('/search', isAuthenticated, tierAccessControl, async (req, res) => {
   try {
     const {
-      keyword, startDate, startTime, endDate, endTime, talkgroupId, radioId,
+      keyword, startDate, startTime, endDate, endTime, talkgroupId, radioId, group,
     } = req.query;
 
     const query = {};
@@ -42,7 +42,15 @@ router.get('/search', isAuthenticated, tierAccessControl, async (req, res) => {
       }
     }
 
-    // Talkgroup + Radio ID
+    // Group filter - applies when group is selected AND no specific talkgroupId
+    if (group && group !== 'All' && !talkgroupId) {
+      const groupIds = talkgroupConfig.getGroupIds(group);
+      if (groupIds.length > 0) {
+        query.talkgroupId = { $in: groupIds };
+      }
+    }
+
+    // Specific talkgroupId takes precedence over group filter
     if (talkgroupId) query.talkgroupId = talkgroupId;
     if (radioId) query.radioId = radioId;
 
@@ -55,7 +63,7 @@ router.get('/search', isAuthenticated, tierAccessControl, async (req, res) => {
     res.render('searchResults', {
       transcriptions,
       query: {
-        keyword, startDate, startTime, endDate, endTime, talkgroupId, radioId,
+        keyword, startDate, startTime, endDate, endTime, talkgroupId, radioId, group,
       },
     });
   } catch (error) {
@@ -69,7 +77,7 @@ router.get('/search', isAuthenticated, tierAccessControl, async (req, res) => {
 router.get('/search-form', isAuthenticated, tierAccessControl, (req, res) => {
   try {
     const {
-      keyword, startDate, startTime, endDate, endTime, talkgroupId, radioId,
+      keyword, startDate, startTime, endDate, endTime, talkgroupId, radioId, group,
     } = req.query;
 
     // Default the start date to 48 hours ago, end date to 1 hour from now,
@@ -78,6 +86,7 @@ router.get('/search-form', isAuthenticated, tierAccessControl, (req, res) => {
     const defaultEnd = moment().add(1, 'hours').format('YYYY-MM-DD');
 
     res.render('searchForm', {
+      groups: talkgroupConfig.getAllGroups(),
       query: {
         keyword: keyword || '',
         startDate: startDate || defaultStart,
@@ -86,6 +95,7 @@ router.get('/search-form', isAuthenticated, tierAccessControl, (req, res) => {
         endTime: endTime || '23:59',
         talkgroupId: talkgroupId || '',
         radioId: radioId || '',
+        group: group || 'All',
       },
     });
     console.log('Rendering search form with pre-filled query params (if any).');
