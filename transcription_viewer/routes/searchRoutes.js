@@ -8,6 +8,10 @@ const { isAuthenticated, tierAccessControl } = require('./middleware/authMiddlew
 
 // If you have a separate Talkgroup model or talkgroupConfig:
 const talkgroupConfig = require('../utils/talkgroupConfig');
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 // or if you have a Talkgroup model, e.g. const Talkgroup = require('../models/Talkgroup');
 
 // Adjusted search endpoint
@@ -21,7 +25,7 @@ router.get('/search', isAuthenticated, tierAccessControl, async (req, res) => {
 
     // Keyword in transcription text
     if (keyword) {
-      query.text = { $regex: keyword, $options: 'i' };
+      query.text = { $regex: escapeRegex(keyword), $options: 'i' };
     }
 
     // Start/end date and time logic

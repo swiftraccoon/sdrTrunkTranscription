@@ -2,6 +2,5 @@ sdrtrunk_transcription.log
 transcriber/testingMP3s
 .claude/
 CLAUDE.md
-transcription_viewer_v2/
 transcription_viewer/lan-cert.crt
 transcription_viewer/lan-cert.key

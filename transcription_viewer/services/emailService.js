@@ -1,6 +1,16 @@
 const nodemailer = require('nodemailer');
 const logger = require('../utils/logger');
 
+function escapeHtml(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 class EmailService {
   constructor() {
     this.transporter = nodemailer.createTransport({
@@ -27,8 +37,8 @@ class EmailService {
         html: `<h3>New Transcription Match</h3>
                <p>A new transcription matching your subscription pattern has been detected:</p>
                <div style="background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px;">
-                 <p><strong>Text:</strong> ${match.text}</p>
-                 <p><strong>Time:</strong> ${match.timestamp}</p>
+                 <p><strong>Text:</strong> ${escapeHtml(match.text)}</p>
+                 <p><strong>Time:</strong> ${escapeHtml(match.timestamp)}</p>
                </div>
                <p>You can view this and other matches on your subscription page.</p>`
       };

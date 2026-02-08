@@ -53,16 +53,15 @@ router.post('/subscriptions', isAuthenticated, async (req, res) => {
 // Delete subscription
 router.delete('/subscriptions/:id', isAuthenticated, async (req, res) => {
   try {
-    const subscription = await Subscription.findOne({
+    const result = await Subscription.deleteOne({
       _id: req.params.id,
       userId: req.session.userId
     });
 
-    if (!subscription) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    await subscription.remove();
     res.json({ message: 'Subscription deleted successfully' });
   } catch (error) {
     logger.error('Error deleting subscription:', error);

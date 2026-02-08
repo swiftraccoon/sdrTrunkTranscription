@@ -19,6 +19,9 @@ const LLMInteraction = require('../models/LLMInteraction');
 /**
  * POST /ai/query
  * Gathers transcriptions in a date range, builds context, and queries the specified LLM.
+ *
+ * Security note: The API key is provided per-request by the user ("bring your own key").
+ * It must never be logged, persisted, or included in error responses.
  */
 router.post('/ai/query', isAuthenticated, tierAccessControl, async (req, res) => {
   const {

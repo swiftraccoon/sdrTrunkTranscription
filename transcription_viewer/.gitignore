@@ -10,3 +10,4 @@ utils/trs_tg_7118.csv
 mydb_dump/
 localhost.crt
 localhost.key
+coverage/
